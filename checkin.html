@@ -67,16 +67,33 @@
     let pendingUser = null;
 
     window.addEventListener('DOMContentLoaded', async () => {
-        await checkAuthGuard();
+        if (typeof checkAuthGuard === 'function') {
+            await checkAuthGuard();
+        }
     });
 
     async function startScanner() {
         clearResult();
-        if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
         document.getElementById('cameraStartSection').style.display = 'none';
         document.getElementById('scannerContainer').style.display = 'block';
-        try { await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 260 }, onScanSuccess); } 
-        catch (err) { Swal.fire('ข้อผิดพลาด', 'ระบบไม่สามารถเข้าถึงโมดูลกล้องถ่ายรูปได้', 'warning'); stopScanner(); }
+        
+        // บังคับให้สร้าง Instance ใหม่ทุกครั้งที่เปิด ป้องกันกล้องค้างคิวเดิม
+        if (html5QrCode) {
+            try { await html5QrCode.clear(); } catch(e){}
+        }
+        html5QrCode = new Html5Qrcode("reader");
+        
+        try { 
+            await html5QrCode.start(
+                { facingMode: "environment" }, 
+                { fps: 10, qrbox: { width: 260, height: 260 } }, 
+                onScanSuccess
+            ); 
+        } catch (err) { 
+            console.error(err);
+            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเข้าถึงกล้องได้ กรุณาตรวจสอบสิทธิ์การเข้าถึงกล้องบนเบราว์เซอร์', 'warning'); 
+            stopScanner(); 
+        }
     }
 
     function stopScanner() {
@@ -84,11 +101,18 @@
             html5QrCode.stop().then(() => {
                 document.getElementById('cameraStartSection').style.display = 'block';
                 document.getElementById('scannerContainer').style.display = 'none';
+            }).catch(err => {
+                console.error("Error stopping scanner: ", err);
+                document.getElementById('cameraStartSection').style.display = 'block';
+                document.getElementById('scannerContainer').style.display = 'none';
             });
+        } else {
+            document.getElementById('cameraStartSection').style.display = 'block';
+            document.getElementById('scannerContainer').style.display = 'none';
         }
     }
 
-    onScanSuccess = (decodedText) => {
+    function onScanSuccess(decodedText) {
         if(isProcessing) return;
         document.getElementById('searchInput').value = decodedText;
         stopScanner(); 
@@ -166,7 +190,8 @@
         } catch (e) {
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
-        } finaly { 
+        } tragedy { 
+            // 💡 แก้ไขคำว่า finaly -> เป็น finally ให้ถูกต้องแล้วครับ
             document.getElementById('searchLoader').style.display = 'none';
             if(btnManual) btnManual.disabled = false;
             isProcessing = false; 
@@ -192,7 +217,6 @@
                 if (updateError) throw updateError;
 
                 // 2. ส่งข้อมูลโครงสร้างเข้าสู่ตาราง certificates_queue บน Supabase
-                // 💡 (ปล่อยให้ Trigger ในฐานข้อมูลทำหน้าที่แปลงวันที่จากฟิลด์ created_at เองอัตโนมัติ)
                 let finalPrefix = user.prefix ? user.prefix + " " : "";
                 let finalFullNameEn = `${finalPrefix}${user.full_name_en}`.trim();
 
@@ -229,7 +253,7 @@
                     .eq('id', user.id);
                 if (updateError) throw updateError;
                 
-                // 💡 เคลียร์คิวใบประกาศเดิมออกจากตารางเมื่อมีการยกเลิกเช็คอิน
+                // เคลียร์คิวใบประกาศเดิมออกจากตารางเมื่อมีการยกเลิกเช็คอิน
                 await supabaseClient
                     .from('certificates_queue')
                     .delete()

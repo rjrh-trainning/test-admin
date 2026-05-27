@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate Hub - RJRH TRAINING CENTER</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --primary: #071f54; --accent: #1976d2; }
+        body { font-family: 'Sarabun', sans-serif; background-color: #f0f4f8; }
+        .navbar { background: linear-gradient(135deg, #051336, var(--accent)); padding: 12px 0; }
+        .card { border: none; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-dark shadow-sm">
+        <div class="container d-flex justify-content-between align-items-center">
+            <span class="navbar-brand fw-bold d-flex align-items-center">
+                <i class="fas fa-certificate me-2"></i> RJRH - ฝ่ายออกใบวุฒิบัตร
+            </span>
+            <a class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold" href="index.html"><i class="fas fa-arrow-left me-1"></i> กลับหน้าเมนู</a>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <div class="card p-4 shadow-sm bg-white">
+            <div class="row g-3 align-items-end mb-4">
+                <div class="col-md-8">
+                    <label class="form-label fw-bold text-primary">เลือกรอบหลักสูตร (เฉพาะผู้ที่เช็คอินแล้ว)</label>
+                    <select class="form-select bg-light form-control-lg" id="certSessionSelect" onchange="loadParticipantsForCert()">
+                        <option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>
+                    </select>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <button class="btn btn-outline-secondary" onclick="loadSessions()"><i class="fas fa-sync-alt"></i> รีเฟรช</button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="60" class="text-center">ลำดับ</th>
+                            <th>ชื่อ-นามสกุล (EN)</th>
+                            <th width="140" class="text-center">รหัสลงทะเบียน</th>
+                            <th width="150" class="text-center">สถานะใบประกาศ</th>
+                            <th width="180" class="text-center">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="certParticipantList">
+                        <tr><td colspan="5" class="text-center text-muted py-4">กรุณาเลือกรอบการอบรมเพื่อโหลดรายชื่อ</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+
+<script>
+    window.addEventListener('DOMContentLoaded', async () => {
+        await checkAuthGuard();
+        loadSessions();
+    });
+
+    async function loadSessions() {
+        const sel = document.getElementById('certSessionSelect');
+        const { data: sessions, error } = await supabaseClient.from('sessions').select('*').order('id', { ascending: true });
+        if (error) return;
+        sel.innerHTML = '<option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>';
+        sessions.forEach(s => { sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name}</option>`; });
+    }
+
+    async function loadParticipantsForCert() {
+        const courseKey = document.getElementById('certSessionSelect').value; if(!courseKey) return;
+        const tbody = document.getElementById('certParticipantList'); 
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-3"><div class="spinner-border text-primary spinner-border-sm me-2"></div>กำลังดึงข้อมูล...</td></tr>';
+        
+        const { data: list, error } = await supabaseClient.from('registrations').select('*').eq('course_key', courseKey).eq('is_checked_in', true).order('created_at', { ascending: true });
+        if(error) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">เกิดข้อผิดพลาด</td></tr>'; return; }
+        
+        tbody.innerHTML = '';
+        if(list.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">ยังไม่มีผู้เช็คอินเข้าร่วมในรอบนี้</td></tr>'; return; }
+
+        list.forEach((row, index) => {
+            let prefixStr = row.prefix ? row.prefix + " " : "";
+            let statusBadge = `<span class="badge bg-secondary" id="badge_${row.id}">ยังไม่ได้สร้าง</span>`;
+            if (row.pdf_status === "รอส่ง") statusBadge = `<span class="badge bg-warning text-dark" id="badge_${row.id}">รอส่งเมล</span>`;
+            else if (row.pdf_status === "ส่งแล้ว" || row.certificate_url) statusBadge = `<span class="badge bg-success" id="badge_${row.id}">ออกสำเร็จ</span>`;
+
+            let actionButton = row.certificate_url ? `<a href="${row.certificate_url}" target="_blank" class="btn btn-sm btn-outline-primary me-1"><i class="fas fa-eye"></i></a>` : '';
+            actionButton += `<button class="btn btn-sm btn-success fw-bold" onclick="triggerGenSingle('${row.id}', '${row.course_key}')" id="btn_gen_${row.id}"><i class="fas fa-cog"></i> GEN</button>`;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td class="text-center fw-bold text-muted">${index + 1}</td>
+                    <td><b class="text-primary">${prefixStr}${row.full_name_en}</b><br><small class="text-muted">${row.full_name_th}</small></td>
+                    <td class="text-center"><code>${row.id}</code></td>
+                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center">${actionButton}</td>
+                </tr>`;
+        });
+    }
+
+    async function triggerGenSingle(regId, courseKey) {
+        const btn = document.getElementById(`btn_gen_${regId}`);
+        const badge = document.getElementById(`badge_${regId}`);
+        btn.disabled = true; btn.innerHTML = `...`;
+        badge.className = "badge bg-info text-dark"; badge.innerHTML = `กำลังเจน...`;
+
+        try {
+            const response = await fetch(CERT_STB_API, {
+                method: 'POST', headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ regId: regId, courseKey: courseKey })
+            });
+            const result = await response.json();
+            if (result.success) {
+                Swal.fire({ icon: 'success', title: 'สำเร็จ!', timer: 1500, showConfirmButton: false });
+                loadParticipantsForCert();
+            } else { throw new Error(result.msg); }
+        } catch(err) {
+            Swal.fire('ล้มเหลว', err.message, 'error');
+            btn.disabled = false; btn.innerHTML = `GEN`;
+            badge.className = "badge bg-danger"; badge.innerHTML = `ล้มเหลว`;
+        }
+    }
+</script>
+</body>
+</html>

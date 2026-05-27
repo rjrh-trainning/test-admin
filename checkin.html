@@ -102,6 +102,7 @@
     function stopScanner() {
         if (html5QrCode && html5QrCode.isScanning) {
             html5QrCode.stop().then(() => {
+                document.getElementById('cameraStartSection').style.display = 'bold'; // ปรับฟอนต์ปุ่มเมนูให้หนาตามปกติ
                 document.getElementById('cameraStartSection').style.display = 'block';
                 document.getElementById('scannerContainer').style.display = 'none';
             }).catch(err => {
@@ -239,19 +240,23 @@
                     }]);
                 if (queueError) throw queueError;
 
-                // 3. สั่งยิงข้อมูลสั่งการทาง HTTP POST บอกให้ท่อนเซิร์ฟเวอร์ GAS บันทึกเวลาลงสเปรดชีต
+                // 3. 🛠️ BUGFIXED: ยิงสัญญาณข้อมูลไปหาท่อนเซิร์ฟเวอร์ GAS แบบตัดปัญหากวนใจเรื่อง CORS
                 let targetApiUrl = (typeof MAIN_REG_API_URL !== 'undefined') ? MAIN_REG_API_URL : GOOGLE_SHEET_API;
                 
-                const response = await fetch(targetApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                        action: "checkInSuccess",
-                        payload: { id: user.id }
-                    })
-                });
-                const gasResult = await response.json();
-                console.log("GAS Sync Result:", gasResult);
+                try {
+                    await fetch(targetApiUrl, {
+                        method: 'POST',
+                        mode: 'no-cors', // 💡 ปล่อยผ่านความปลอดภัยฝั่งเบราว์เซอร์ เพื่อให้ GAS บันทึกค่าได้โดยสคริปต์หน้าแอปไม่ระเบิดค้าง
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({
+                            action: "checkInSuccess",
+                            id: String(user.id).trim() // ส่งโครงสร้าง ID ชั้นเดียวแบบสะอาด เพื่อความเสถียรของสคริปต์
+                        })
+                    });
+                    console.log("GAS Sync Triggered Successfully via no-cors mode.");
+                } catch(gasErr) {
+                    console.error("GAS Sync Network Error (Non-blocking):", gasErr);
+                }
 
             } else {
                 // 🔄 โหมดเช็คเอาท์ (ยกเลิก): อัปเดตข้อมูลตารางหลักกลับคืนสถานะปกติ

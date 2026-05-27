@@ -80,7 +80,7 @@
                 <div class="modal-header border-bottom-0 pb-0">
                     <div>
                         <h5 class="modal-title fw-bold text-dark fs-4">ตัวอย่างตรวจสอบตำแหน่งข้อมูลก่อนออกจริง</h5>
-                        <p class="text-muted small mb-0">ดึงค่าพิกัดตามระดับคลีนข้อมูลจากตารางคิวงาน</p>
+                        <p class="text-muted small mb-0">ดึงค่าพิกัดตามระดับคลีนข้อมูลจากตารางคิวงาน Supabase</p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -103,17 +103,17 @@
 <script src="config.js"></script>
 
 <script>
-    // ดึงรูปโครงแผ่นแบบใบประกาศ (ใช้แผ่นเปล่าไร้ชื่อผ่านตู้เซฟ Storage)
+    // ดึงรูปโครงแผ่นแบบใบประกาศผ่านตู้เซฟ Storage ของโปรเจกต์
     const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
     
-    // 📍 จุดปรับตั้งระนาบอักษรให้ลอยชัดเจน ไม่ซ้อนกันเด็ดขาด
+    // 📍 จุดปรับตั้งระนาบอักษรให้ลอยชัดเจนสมสัดส่วนแนวนอน
     const CANVAS_CONFIG = {
         nameFont: "bold 40px 'Sarabun', sans-serif", 
         nameColor: "#111827", 
-        nameYOffset: 345,      // หากชื่ออยู่สูงไปให้เพิ่มเลข ขยับลงให้ลดเลขตรงนี้ครับช่าง
+        nameYOffset: 345,      // หากชื่ออยู่สูงไปให้เพิ่มเลข ขยับลงให้ลดเลขตรงนี้
         dateFont: "bold 22px 'Sarabun', sans-serif", 
         dateColor: "#1f2937", 
-        dateYOffset: 465,      // หากวันที่ทับซ้อนให้ปรับเลื่อนระยะพิกเซลตรงนี้ครับช่าง
+        dateYOffset: 465,      // หากวันที่ต่ำไปให้ลดพิกเซลตรงนี้ลง
         align: "center"
     };
 
@@ -137,7 +137,7 @@
         });
     }
 
-    // โหลดรายชื่อและข้อมูลใบประกาศตรงจากตารางใหม่ certificates_queue บน Supabase
+    // โหลดรายชื่อผู้เรียนจากคิวตารางกลางใบประกาศบน Supabase
     async function loadCertificatesQueue() {
         const courseKey = document.getElementById('certSessionSelect').value; 
         document.getElementById('checkAllMaster').checked = false;
@@ -189,7 +189,7 @@
                     <td class="text-center">${statusBadge}</td>
                     <td class="text-center">
                         <div class="btn-group gap-1">
-                            <button class="btn btn-sm btn-outline-info px-2" onclick="openCanvasPreview('${index}')" title="พรีวิวตรวจสอบความสมดุลตัวอักษร"><i class="fas fa-desktop"></i></button>
+                            <button class="btn btn-sm btn-outline-info px-2" onclick="fetchTextAndPreview('${row.registration_id}')" title="พรีวิวตรวจสอบความสมดุลตัวอักษร"><i class="fas fa-desktop"></i></button>
                             ${viewBtn}
                             <button class="btn btn-sm btn-success fw-bold px-2" onclick="triggerGenSingle('${row.registration_id}', '${row.course_key}')" id="btn_gen_${row.registration_id}"><i class="fas fa-cog"></i> GEN</button>
                         </div>
@@ -198,15 +198,22 @@
         });
     }
 
-    // แสตมป์ตัวหนังสือดึงสดจากแถวข้อมูลตารางใบประกาศบนเบราว์เซอร์
-    function openCanvasPreview(index) {
-        const row = localQueueData[index];
-        if(!row) return;
+    // ⚡ พรีวิวด่วนดึงข้อมูลตรงจากตารางคิวสากลบนหน้าจอทันที ไม่ต้องวิ่งไปกวนฝั่ง API Google Sheet ให้หลุดสิทธิ์ CORS อีกรอบ
+    function fetchTextAndPreview(regId) {
+        const row = localQueueData.find(item => String(item.registration_id).trim() === String(regId).trim());
+        
+        if (!row) {
+            Swal.fire('ไม่พบรายชื่อ', 'ไม่พบข้อมูลในตารางคิว Supabase', 'warning');
+            return;
+        }
 
         document.getElementById('loadingText').style.display = 'flex';
         const canvas = document.getElementById('previewCanvas');
         canvas.classList.add('d-none');
         bsPreviewModal.show();
+
+        let fullNameStr = row.full_name_en || "ไม่ระบุชื่อ";
+        let dateStr = row.training_date || "ไม่ระบุวันที่";
 
         document.fonts.load(CANVAS_CONFIG.nameFont).then(() => {
             const img = new Image();
@@ -221,23 +228,23 @@
 
                 let centerX = img.width / 2;
 
-                // พิมพ์ชื่อสดจากฟิลด์ full_name_en
+                // พิมพ์ข้อความชื่ออังกฤษ (Col D สะพานเชื่อมสากล)
                 ctx.font = CANVAS_CONFIG.nameFont;
                 ctx.fillStyle = CANVAS_CONFIG.nameColor;
                 ctx.textAlign = CANVAS_CONFIG.align;
-                ctx.fillText(row.full_name_en, centerX, CANVAS_CONFIG.nameYOffset);
+                ctx.fillText(fullNameStr, centerX, CANVAS_CONFIG.nameYOffset);
 
-                // พิมพ์วันที่อบรมสดจากฟิลด์ training_date
+                // พิมพ์ข้อความวันที่จัดอบรมจริง (Col J สะพานเชื่อมสากล)
                 ctx.font = CANVAS_CONFIG.dateFont;
                 ctx.fillStyle = CANVAS_CONFIG.dateColor;
-                ctx.fillText(row.training_date, centerX, CANVAS_CONFIG.dateYOffset);
+                ctx.fillText(dateStr, centerX, CANVAS_CONFIG.dateYOffset);
 
                 document.getElementById('loadingText').style.display = 'none';
                 canvas.classList.remove('d-none');
             };
             img.onerror = function() {
                 document.getElementById('loadingText').style.display = 'none';
-                Swal.fire('ข้อผิดพลาด', 'ภาพต้นแบบขัดข้องเรื่องลิขสิทธิ์ความปลอดภัย CORS ของโฮสต์', 'error');
+                Swal.fire('ข้อผิดพลาด CORS', 'ภาพขัดข้องเรื่องลิขสิทธิ์สิทธิ์ CORS หลังบ้านโปรเจกต์', 'error');
                 bsPreviewModal.hide();
             };
             img.src = TEMPLATE_IMAGE_URL + "?refresh=" + new Date().getTime();
@@ -279,6 +286,7 @@
         let targetFolderId = FOLDER_CONFIG[courseKey] || ""; 
 
         try {
+            // ยิงสั่งงานด้วย POST ไปที่ตัวแปรกลาง CERT_STB_API (URL Web App ใหม่ที่คุณจะนำมาปะ)
             const response = await fetch(CERT_STB_API, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
@@ -305,8 +313,8 @@
         
         if (selectedCbs.length > CHUNK_SIZE) {
             const confirmRes = await Swal.fire({
-                title: 'จัดระเบียบคิวงานชุดใหญ่',
-                html: `คุณเลือกรายชื่อทั้งหมด <b>${selectedCbs.length} รายการ</b> ระบบจะแบ่งรอบรันก้อนย่อยแรกจำนวน <b>${CHUNK_SIZE} รายการ</b> เพื่อความเสถียรสูงสุดตามมาตรฐานความปลอดภัยสากลครับ`,
+                title: 'จัดสรรคิวงานปริมาณมาก',
+                html: `คุณเลือกรายชื่อทั้งหมด <b>${selectedCbs.length} รายการ</b> ระบบจะแบ่งรอบประมวลผลก้อนแรกจำนวน <b>${CHUNK_SIZE} รายการ</b> เพื่อป้องกันสคริปต์ล่มกลางงานครับ`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'เริ่มรันก้อนแรก (40 คน)',
@@ -320,11 +328,11 @@
         const courseKey = document.getElementById('certSessionSelect').value;
 
         mainBtn.disabled = true;
-        mainBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> กำลังประมวลผลคิวกลุ่ม...`;
+        mainBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> กำลังรันคิวกลุ่มก้อนย่อย...`;
 
         Swal.fire({
-            title: `กำลังส่งคิวให้เซิร์ฟเวอร์ Google`,
-            html: `ระบบปฏิบัติการกำลังทยอยรันใบประกาศจำนวน <b>${currentBatchCbs.length} รายการ</b> ในก้อนนี้<br><small class="text-danger">⚠️ ห้ามปิดหน้านี้เด็ดขาดจนกว่าจะเสร็จสิ้นภารกิจ</small>`,
+            title: `กำลังส่งคิวออกใบประกาศตัวจริง`,
+            html: `ระบบกำลังรันออกเอกสาร PDF จำนวน <b>${currentBatchCbs.length} รายการ</b> ในรอบนี้<br><small class="text-danger">⚠️ ห้ามปิดหน้าต่างเบราว์เซอร์นี้เด็ดขาด</small>`,
             icon: 'info',
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -342,7 +350,7 @@
                 cb.checked = false; 
             }
             if(i < currentBatchCbs.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 1500)); // เว้นจังหวะเซฟโซน 1.5 วินาที
+                await new Promise(resolve => setTimeout(resolve, 1500)); // หน่วงดีเลย์เซฟโซน 1.5 วินาที
             }
         }
 
@@ -353,12 +361,12 @@
         const remainingTotal = selectedCbs.length - currentBatchCbs.length;
         if (remainingTotal > 0) {
             Swal.fire({
-                title: 'จบรอบแรกเรียบร้อย',
-                html: `ทำเสร็จสมบูรณ์แล้ว <b>${successCount} ใบ</b><br><br>มีคิวคงค้างอยู่อีก <b>${remainingTotal} แถว</b> สามารถกดสั่งเพื่อเริ่มรันก้อนงานถัดไปได้ทันทีครับช่าง`,
+                title: 'จบรอบแรกสำเร็จเสร็จสิ้น',
+                html: `สร้างไฟล์เอกสาร PDF เรียบร้อยแล้ว <b>${successCount} ใบ</b><br><br>ยังมีรายการคงค้างอยู่ในคิวอีก <b>${remainingTotal} คน</b> สามารถกดสั่งรอบถัดไปได้ทันทีครับช่าง`,
                 icon: 'success'
             });
         } else {
-            Swal.fire('ประมวลผลเสร็จสิ้นทั้งหมด', `ระบบได้จัดทำเอกสารใบประกาศตัวจริงลงคลังและคิวงานสากลเรียบร้อยครบถ้วนแล้วครับช่าง!`, 'success');
+            Swal.fire('ประมวลผลเสร็จสิ้นทั้งหมด', `ระบบทำการออกเอกสารใบประกาศตัวจริงและจัดคิวลงตารางหลักสากลเรียบร้อยครบถ้วนแล้วครับช่าง!`, 'success');
         }
         loadCertificatesQueue();
     }

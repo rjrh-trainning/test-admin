@@ -103,18 +103,19 @@
 <script src="config.js"></script>
 
 <script>
-    // ดึงรูปโครงแผ่นแบบใบประกาศผ่านตู้เซฟ Storage ของโปรเจกต์
+    // 🎯 ล็อกเป้ากลับมาใช้เทมเพลตตัวเดิมตามคำสั่ง
     const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
     
-    // 📍 จุดปรับตั้งระนาบอักษรให้ลอยชัดเจนสมสัดส่วนแนวนอน
-    const CANVAS_CONFIG = {
-        nameFont: "bold 40px 'Sarabun', sans-serif", 
-        nameColor: "#111827", 
-        nameYOffset: 345,      // หากชื่ออยู่สูงไปให้เพิ่มเลข ขยับลงให้ลดเลขตรงนี้
-        dateFont: "bold 22px 'Sarabun', sans-serif", 
-        dateColor: "#1f2937", 
-        dateYOffset: 465,      // หากวันที่ต่ำไปให้ลดพิกเซลตรงนี้ลง
-        align: "center"
+    // 🎯 ใช้โครงสร้าง TEXT_CONFIG และปรับพิกัดดิ่ง+ขนาดฟอนต์ให้สมดุลล็อกช่องว่างของแผ่น Chaichana พอดีเป๊ะ
+    const TEXT_CONFIG = {
+        nameFont: "bold 32px 'Sarabun', sans-serif", 
+        nameColor: "#475569",            
+        nameYOffset: 570, 
+        dateFont: "500 18px 'Sarabun', sans-serif", 
+        dateColor: "#64748b", 
+        dateYOffset: 670, 
+        align: "center",             
+        xOffset: "center" 
     };
 
     const FOLDER_CONFIG = { "STB": "1fHNt7UAIlq-9zP9LvTYhJiOd4TQs6PLb" };
@@ -137,7 +138,6 @@
         });
     }
 
-    // โหลดรายชื่อผู้เรียนจากคิวตารางกลางใบประกาศบน Supabase
     async function loadCertificatesQueue() {
         const courseKey = document.getElementById('certSessionSelect').value; 
         document.getElementById('checkAllMaster').checked = false;
@@ -185,7 +185,7 @@
                     </td>
                     <td class="text-center fw-bold text-muted">${index + 1}</td>
                     <td><b class="text-primary fs-6">${row.full_name_en}</b></td>
-                    <td class="text-center font-medium text-muted">${row.training_date}</td>
+                    <td class="text-center font-medium text-muted">${row.training_date || ''}</td>
                     <td class="text-center">${statusBadge}</td>
                     <td class="text-center">
                         <div class="btn-group gap-1">
@@ -198,7 +198,7 @@
         });
     }
 
-    // ⚡ พรีวิวด่วนดึงข้อมูลตรงจากตารางคิวสากลบนหน้าจอทันที ไม่ต้องวิ่งไปกวนฝั่ง API Google Sheet ให้หลุดสิทธิ์ CORS อีกรอบ
+    // ⚡ ฟังก์ชันเรียกดูพรีวิวโดยอ้างอิงและแกะค่าระนาบพิกเซลตัวแปรสไตล์ TEXT_CONFIG อันใหม่
     function fetchTextAndPreview(regId) {
         const row = localQueueData.find(item => String(item.registration_id).trim() === String(regId).trim());
         
@@ -213,9 +213,10 @@
         bsPreviewModal.show();
 
         let fullNameStr = row.full_name_en || "ไม่ระบุชื่อ";
-        let dateStr = row.training_date || "ไม่ระบุวันที่";
+        let dateStr = row.training_date || "";
 
-        document.fonts.load(CANVAS_CONFIG.nameFont).then(() => {
+        // โพสต์โหลดฟอนต์ตามค่าเซ็ตติ้งใน TEXT_CONFIG
+        document.fonts.load(TEXT_CONFIG.nameFont).then(() => {
             const img = new Image();
             img.crossOrigin = "Anonymous"; 
             img.onload = function() {
@@ -228,23 +229,25 @@
 
                 let centerX = img.width / 2;
 
-                // พิมพ์ข้อความชื่ออังกฤษ (Col D สะพานเชื่อมสากล)
-                ctx.font = CANVAS_CONFIG.nameFont;
-                ctx.fillStyle = CANVAS_CONFIG.nameColor;
-                ctx.textAlign = CANVAS_CONFIG.align;
-                ctx.fillText(fullNameStr, centerX, CANVAS_CONFIG.nameYOffset);
+                // พิมพ์ชื่อผู้เรียน (อิงระนาบดิ่งจาก TEXT_CONFIG)
+                ctx.font = TEXT_CONFIG.nameFont;
+                ctx.fillStyle = TEXT_CONFIG.nameColor;
+                ctx.textAlign = TEXT_CONFIG.align;
+                ctx.fillText(fullNameStr, centerX, TEXT_CONFIG.nameYOffset);
 
-                // พิมพ์ข้อความวันที่จัดอบรมจริง (Col J สะพานเชื่อมสากล)
-                ctx.font = CANVAS_CONFIG.dateFont;
-                ctx.fillStyle = CANVAS_CONFIG.dateColor;
-                ctx.fillText(dateStr, centerX, CANVAS_CONFIG.dateYOffset);
+                // พิมพ์วันที่อบรม (อิงระนาบดิ่งจาก TEXT_CONFIG)
+                if (dateStr) {
+                    ctx.font = TEXT_CONFIG.dateFont;
+                    ctx.fillStyle = TEXT_CONFIG.dateColor;
+                    ctx.fillText(dateStr, centerX, TEXT_CONFIG.dateYOffset);
+                }
 
                 document.getElementById('loadingText').style.display = 'none';
                 canvas.classList.remove('d-none');
             };
             img.onerror = function() {
                 document.getElementById('loadingText').style.display = 'none';
-                Swal.fire('ข้อผิดพลาด CORS', 'ภาพขัดข้องเรื่องลิขสิทธิ์สิทธิ์ CORS หลังบ้านโปรเจกต์', 'error');
+                Swal.fire('ข้อผิดพลาด CORS', 'ภาพขัดข้องเรื่องลิขสิทธิ์สิทธิ์ CORS หรือลิงก์ที่อยู่ภาพเพี้ยน', 'error');
                 bsPreviewModal.hide();
             };
             img.src = TEMPLATE_IMAGE_URL + "?refresh=" + new Date().getTime();
@@ -286,7 +289,6 @@
         let targetFolderId = FOLDER_CONFIG[courseKey] || ""; 
 
         try {
-            // ยิงสั่งงานด้วย POST ไปที่ตัวแปรกลาง CERT_STB_API (URL Web App ใหม่ที่คุณจะนำมาปะ)
             const response = await fetch(CERT_STB_API, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
@@ -350,7 +352,7 @@
                 cb.checked = false; 
             }
             if(i < currentBatchCbs.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 1500)); // หน่วงดีเลย์เซฟโซน 1.5 วินาที
+                await new Promise(resolve => setTimeout(resolve, 1500)); 
             }
         }
 

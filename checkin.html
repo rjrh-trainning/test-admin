@@ -65,7 +65,7 @@
 <script>
     let html5QrCode; 
     let isProcessing = false;
-    let fetchedRecords = []; // 🎯 เก็บรายการผลลัพธ์ทั้งหมดที่ค้นเจอ
+    let fetchedRecords = []; 
 
     const CHECKIN_API_URL = "https://script.google.com/macros/s/AKfycbwXHtjumpXQ8MxoUuQ6bq-oNWeSgD0a9gV0A8IOncDSIggGEKXSaab1JxmWqfL4qgmq/exec";
 
@@ -152,7 +152,6 @@
         }
 
         try {
-            // ดึงรายชื่อทั้งหมดที่ตรงกับรหัสอ้างอิง หรือ เบอร์โทรนี้ (ไม่ตัดทิ้งเหลืออันสุดท้ายแล้ว)
             let { data: results, error: fetchError } = await supabaseClient
                 .from('registrations')
                 .select('*')
@@ -163,16 +162,13 @@
                 throw new Error(`ไม่พบข้อมูลผู้ลงทะเบียนจากรหัส หรือ เบอร์โทร: "${searchQuery}"`);
             }
 
-            // จัดเก็บลงตัวแปรร่วมของหน้าจอเพื่อให้ฟังก์ชันอื่นเรียกใช้พิกัดโครงสร้างได้ง่าย
             fetchedRecords = results; 
 
-            // ดึงข้อมูลวิชาประกอบแบบระบุตัวตนร่วมกัน
             for (let user of fetchedRecords) {
                 const { data: sessionData } = await supabaseClient.from('sessions').select('name, date').eq('course_key', user.course_key).single();
                 user.session_info = sessionData || { name: user.course_key, date: "ไม่ระบุรอบอบรม" };
             }
 
-            // ข้อมูลพื้นฐานส่วนบุคคล (ดึงจากแถวแรกมาแสดงเป็นหัวข้อใหญ่)
             const baseUser = fetchedRecords[0];
             let prefixStr = baseUser.prefix ? baseUser.prefix + " " : "";
 
@@ -189,7 +185,6 @@
                         <h6 class="fw-bold text-secondary border-top pt-3 mb-3"><i class="fas fa-graduation-cap me-2"></i>รายการหลักสูตรที่ลงทะเบียน</h6>
                         <div id="courseListSelection">`;
 
-            // ลูปสร้างกล่องวิชาให้เลือกจิ้มเช็คอินแยกกันเป็นเอกเทศ
             fetchedRecords.forEach((user, index) => {
                 let pdpaBadge = user.photo_consent 
                     ? `<span class="badge bg-success course-badge"><i class="fas fa-camera me-1"></i> PDPA: ยินยอม</span>` 
@@ -236,7 +231,6 @@
         }
     }
 
-    // 🎯 ฟังก์ชันเช็คอินเจาะจงเฉพาะรายวิชาที่แอดมินคลิกเลือก
     async function commitCheckInSpecific(index, selectedMode) {
         if(isProcessing || !fetchedRecords[index]) return;
         isProcessing = true;
@@ -251,7 +245,6 @@
 
         try {
             if (selectedMode === "IN") {
-                // 1. อัปเดตตาราง registrations เฉพาะไอดีหลักสูตรนั้นใน Supabase
                 let nowTime = new Date().toISOString();
                 const { error: updateError } = await supabaseClient
                     .from('registrations')
@@ -259,7 +252,6 @@
                     .eq('id', user.id);
                 if (updateError) throw updateError;
 
-                // 2. ใส่คิวใบประกาศใบตาราง certificates_queue
                 let finalFullNameEn = user.full_name_en ? String(user.full_name_en).trim() : "";
                 const { error: queueError } = await supabaseClient
                     .from('certificates_queue')
@@ -271,7 +263,6 @@
                     }]);
                 if (queueError) throw queueError;
 
-                // 3. ยิงข้ามสัญญาณส่งให้ API เช็คอิน Google Sheets บันทึกวันที่ลงคอลัมน์ I
                 try {
                     await fetch(CHECKIN_API_URL, {
                         method: 'POST',
@@ -288,14 +279,12 @@
                     console.error("GAS Sync Error:", gasErr);
                 }
 
-                // แจ้งเตือนสเปกความสำเร็จผ่าน UI รายคอร์ส
                 courseCard.innerHTML = `
                     <div class="alert alert-success border-success text-center mb-0 py-3 fw-bold">
                         <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จแล้ว!
                     </div>`;
 
             } else {
-                // 🔄 โหมดเช็คเอาท์ (ยกเลิก): เคลียร์ค่าในระบบ Supabase ตามปกติ (ไม่ยุ่งกับสเปรดชีตตามเงื่อนไขเดิม)
                 let updateField = { is_checked_in: false, checked_in_at: null };
                 const { error: updateError } = await supabaseClient
                     .from('registrations')
@@ -314,7 +303,6 @@
                     </div>`;
             }
 
-            // ปล่อยให้ผู้เรียนรายวิชาอื่นในหน้าจอสามารถเช็คอินต่อได้โดยไม่ต้องกดค้นหาใหม่
             user.is_checked_in = (selectedMode === "IN");
 
         } catch (e) {

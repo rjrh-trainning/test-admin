@@ -143,63 +143,76 @@
     }
 
     // ฟังก์ชันเปลี่ยนมาดึง Data ตรงจาก Google Sheet ตามชื่อแท็บ Course Key
-    async function loadParticipantsFromSheet() {
+async function loadParticipantsFromSheet() {
         const courseKey = document.getElementById('certSessionSelect').value; 
         document.getElementById('checkAllMaster').checked = false;
         updateBatchUI();
         
         if(!courseKey) return;
         const tbody = document.getElementById('certParticipantList'); 
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm me-2"></div>กำลังเชื่อมต่อเพื่อดึงรายชื่อจากคลังข้อมูล Google Sheet...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm me-2"></div>กำลังเชื่อมต่อผ่านระบบสะพานข้อมูล Google Sheet...</td></tr>';
         
-        try {
-            const response = await fetch(`${GOOGLE_SHEET_API}?action=getCertData&courseKey=${courseKey}`);
-            const result = await response.json();
-            
-            if (!result.success) throw new Error(result.msg || "สคริปต์หลังบ้านส่งกลับค่าล้มเหลว");
-
-            localParticipantsData = result.data || [];
-            tbody.innerHTML = '';
-            
-            if(localParticipantsData.length === 0) { 
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> ไม่พบข้อมูลผู้ลงทะเบียนในแท็บคอร์ส "' + courseKey + '" บน Google Sheet</td></tr>'; 
-                return; 
-            }
-
-            localParticipantsData.forEach((row, index) => {
-                let displayName = row.fullName || "ไม่ระบุชื่อ";
-                let dateTraining = row.dateStr || "ไม่ระบุวันที่";
-                
-                let statusBadge = row.pdfUrl 
-                    ? `<span class="badge bg-success px-3 py-1.5" id="badge_${row.regId}"><i class="fas fa-check-circle me-1"></i>ออกสำเร็จ</span>` 
-                    : `<span class="badge bg-secondary px-3 py-1.5" id="badge_${row.regId}">รอประมวลผล</span>`;
-
-                let viewBtn = row.pdfUrl ? `<a href="${row.pdfUrl}" target="_blank" class="btn btn-sm btn-outline-primary px-2" id="btn_view_${row.regId}" title="เปิดดูไฟล์ PDF บน Drive"><i class="fas fa-eye"></i></a>` : '';
-
-                tbody.innerHTML += `
-                    <tr class="hover-shadow-sm">
-                        <td class="text-center">
-                            <input type="checkbox" class="form-check-input row-select cursor-pointer" value="${row.regId}" data-index="${index}" onclick="onRowSelectChange()">
-                        </td>
-                        <td class="text-center fw-bold text-muted">${index + 1}</td>
-                        <td><b class="text-primary fs-6">${displayName}</b></td>
-                        <td class="text-center font-medium">${dateTraining}</td>
-                        <td class="text-center">${statusBadge}</td>
-                        <td class="text-center">
-                            <div class="btn-group gap-1">
-                                <button class="btn btn-sm btn-outline-info px-2" onclick="openClientPreview('${index}')" title="พรีวิวตรวจสอบความถูกต้อง"><i class="fas fa-desktop"></i></button>
-                                ${viewBtn}
-                                <button class="btn btn-sm btn-success fw-bold px-2" onclick="triggerGenSingle('${row.regId}', '${courseKey}')" id="btn_gen_${row.regId}"><i class="fas fa-cog"></i> GEN</button>
-                            </div>
-                        </td>
-                    </tr>`;
-            });
-
-        } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-5 fw-bold"><i class="fas fa-exclamation-triangle me-1"></i> ไม่สามารถเชื่อมต่อ Google Sheet ได้: ${err.message}</td></tr>`;
-        }
+        // สร้างแท็กพิเศษวิ่งหลบการตรวจสิทธิ์รักษาความปลอดภัยของเบราว์เซอร์
+        const script = document.createElement('script');
+        script.src = `${GOOGLE_SHEET_API}?action=getCertData&courseKey=${courseKey}&callback=handleSheetResponse`;
+        
+        script.onerror = function() {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-5 fw-bold"><i class="fas fa-exclamation-triangle me-1"></i> ไม่สามารถเชื่อมต่อสคริปต์ Google Sheet ได้ กรุณาตรวจสอบสิทธิ์ Deployment หลังบ้าน</td></tr>`;
+        };
+        
+        document.body.appendChild(script); // สั่งรันโครงสร้างสคริปต์เพื่อดึง Data
     }
 
+    // 🔥 2. เพิ่มฟังก์ชันกลางเพื่อแกะก้อนข้อมูล JSON ที่ไหลมาจาก Google Sheet
+    window.handleSheetResponse = function(result) {
+        const tbody = document.getElementById('certParticipantList'); 
+        
+        // เคลียร์แท็กสคริปต์ข้ามระบบทิ้งเพื่อรักษาความเบาของหน้าเว็บ
+        const scripts = document.querySelectorAll('script[src*="action=getCertData"]');
+        scripts.forEach(s => s.remove());
+
+        if (!result.success) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-5 fw-bold"><i class="fas fa-exclamation-triangle me-1"></i> เกิดข้อผิดพลาดจาก Sheets: ${result.msg}</td></tr>`;
+            return;
+        }
+
+        localParticipantsData = result.data || [];
+        tbody.innerHTML = '';
+        
+        if(localParticipantsData.length === 0) { 
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> ไม่พบข้อมูลผู้ลงทะเบียนในแท็บคอร์สนี้ บน Google Sheet</td></tr>'; 
+            return; 
+        }
+
+        localParticipantsData.forEach((row, index) => {
+            let displayName = row.fullName || "ไม่ระบุชื่อ";
+            let dateTraining = row.dateStr || "ไม่ระบุวันที่";
+            
+            let statusBadge = row.pdfUrl 
+                ? `<span class="badge bg-success px-3 py-1.5" id="badge_${row.regId}"><i class="fas fa-check-circle me-1"></i>ออกสำเร็จ</span>` 
+                : `<span class="badge bg-secondary px-3 py-1.5" id="badge_${row.regId}">รอประมวลผล</span>`;
+
+            let viewBtn = row.pdfUrl ? `<a href="${row.pdfUrl}" target="_blank" class="btn btn-sm btn-outline-primary px-2" id="btn_view_${row.regId}" title="เปิดดูไฟล์ PDF บน Drive"><i class="fas fa-eye"></i></a>` : '';
+
+            tbody.innerHTML += `
+                <tr class="hover-shadow-sm">
+                    <td class="text-center">
+                        <input type="checkbox" class="form-check-input row-select cursor-pointer" value="${row.regId}" data-index="${index}" onclick="onRowSelectChange()">
+                    </td>
+                    <td class="text-center fw-bold text-muted">${index + 1}</td>
+                    <td><b class="text-primary fs-6">${displayName}</b></td>
+                    <td class="text-center font-medium">${dateTraining}</td>
+                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center">
+                        <div class="btn-group gap-1">
+                            <button class="btn btn-sm btn-outline-info px-2" onclick="openClientPreview('${index}')" title="พรีวิวตรวจสอบความถูกต้อง"><i class="fas fa-desktop"></i></button>
+                            ${viewBtn}
+                            <button class="btn btn-sm btn-success fw-bold px-2" onclick="triggerGenSingle('${row.regId}', '${document.getElementById('certSessionSelect').value}')" id="btn_gen_${row.regId}"><i class="fas fa-cog"></i> GEN</button>
+                        </div>
+                    </td>
+                </tr>`;
+        });
+    }
     // ฟังก์ชันดึงชื่อและวันที่จากข้อมูลสเปรดชีตมาแสตมป์ภาพพรีวิว
     function openClientPreview(index) {
         const row = localParticipantsData[index];

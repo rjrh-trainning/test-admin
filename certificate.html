@@ -21,7 +21,7 @@
     <nav class="navbar navbar-dark shadow-sm mb-4">
         <div class="container d-flex justify-content-between align-items-center">
             <span class="navbar-brand fw-bold d-flex align-items-center">
-                <i class="fas fa-certificate me-2 text-warning"></i> RJRH - ฝ่ายออกใบวุฒิบัตร (สถาปัตยกรรมคิวงานไฮบริด)
+                <i class="fas fa-certificate me-2 text-warning"></i> RJRH - ฝ่ายออกใบวุฒิบัตร (Supabase Dynamic Queue)
             </span>
             <a class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold" href="index.html"><i class="fas fa-arrow-left me-1"></i> กลับหน้าเมนู</a>
         </div>
@@ -31,9 +31,9 @@
         <div class="card p-4 bg-white">
             <div class="row g-3 align-items-end mb-4">
                 <div class="col-md-7">
-                    <label class="form-label fw-bold text-primary"><i class="fas fa-filter me-1"></i> เลือกรอบหลักสูตร (ระบบคัดรายชื่อเฉพาะผู้ที่เช็คอินแล้วจาก Supabase)</label>
-                    <select class="form-select bg-light form-control-lg fw-bold" id="certSessionSelect" onchange="loadParticipantsForCert()">
-                        <option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>
+                    <label class="form-label fw-bold text-primary"><i class="fas fa-filter me-1"></i> เลือกรอบหลักสูตร (ข้อมูลคิวออกใบประกาศจากตารางศูนย์กลาง)</label>
+                    <select class="form-select bg-light form-control-lg fw-bold" id="certSessionSelect" onchange="loadCertificatesQueue()">
+                        <option value="">-- เลือกรอบอบรมเพื่อคัดกรองคิวงาน --</option>
                     </select>
                 </div>
                 <div class="col-md-5 text-md-end">
@@ -45,7 +45,7 @@
                 <div class="d-flex align-items-center gap-3">
                     <div class="p-2.5 bg-primary text-white rounded-3 text-center" style="width: 40px; height: 40px;"><i class="fas fa-tasks"></i></div>
                     <div>
-                        <div class="text-muted small fw-bold">การทำงานแบบกลุ่มย่อย (จำกัดก้อนละไม่เกิน 40 ใบ)</div>
+                        <div class="text-muted small fw-bold">การทำงานแบบกลุ่มย่อย (ระบบล็อกความปลอดภัยก้อนละ 40 ใบ)</div>
                         <div class="fw-bold text-dark">เลือกอยู่ทั้งหมด <span id="selectedCountText" class="fs-4 text-primary font-black mx-1">0</span> รายการ</div>
                     </div>
                 </div>
@@ -60,28 +60,27 @@
                                 <input type="checkbox" id="checkAllMaster" onclick="toggleSelectAll(this)" class="form-check-input cursor-pointer">
                             </th>
                             <th width="60" class="text-center">ลำดับ</th>
-                            <th>ชื่อ-นามสกุล (ดึงจากระบบลงทะเบียน)</th>
-                            <th width="140" class="text-center">รหัสลงทะเบียน</th>
-                            <th width="160" class="text-center">สถานะใบประกาศ</th>
+                            <th>ชื่อ-นามสกุล (สำหรับพิมพ์วุฒิบัตร)</th>
+                            <th width="160" class="text-center">วันที่ระบุบนใบประกาศ</th>
+                            <th width="160" class="text-center">สถานะคิวงาน</th>
                             <th width="180" class="text-center">การจัดการ</th>
                         </tr>
                     </thead>
                     <tbody id="certParticipantList">
-                        <tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> กรุณาเลือกรอบการอบรมด้านบนเพื่อโหลดข้อมูลรายชื่อคิวงาน</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> กรุณาเลือกรอบการอบรมด้านบนเพื่อดึงคิวงานจากตารางใบประกาศ</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- ม็อดดัลพรีวิวแบบ Canvas ความเร็วสูง -->
     <div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content rounded-4 border-0 shadow-lg">
                 <div class="modal-header border-bottom-0 pb-0">
                     <div>
-                        <h5 class="modal-title fw-bold text-dark fs-4">ตัวอย่างพรีวิวแมปปิ้งด้วย Canvas</h5>
-                        <p class="text-muted small mb-0">ข้อมูลชื่อ (Col D) และวันที่ (Col J) ดึงตรงจาก Google Sheet ของแท็บคอร์ส</p>
+                        <h5 class="modal-title fw-bold text-dark fs-4">ตัวอย่างตรวจสอบตำแหน่งข้อมูลก่อนออกจริง</h5>
+                        <p class="text-muted small mb-0">ดึงค่าพิกัดตามระดับคลีนข้อมูลจากตารางคิวงาน</p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -89,7 +88,7 @@
                     <div class="bg-light border rounded-3 overflow-hidden position-relative p-2 d-flex justify-content-center align-items-center shadow-inner" style="min-height: 380px;">
                         <div id="loadingText" class="position-absolute d-flex flex-column align-items-center justify-content-center bg-white bg-opacity-75 h-100 w-100 z-3">
                             <div class="spinner-border text-primary mb-2"></div>
-                            <span class="fw-bold text-muted">กำลังดึงข้อมูลจาก Google Sheet และประกอบรูปภาพ...</span>
+                            <span class="fw-bold text-muted">กำลังดึงโครงภาพเปล่าและแสตมป์ข้อความประกอบ...</span>
                         </div>
                         <canvas id="previewCanvas" class="img-fluid rounded shadow-sm d-none"></canvas>
                     </div>
@@ -104,22 +103,22 @@
 <script src="config.js"></script>
 
 <script>
-    // ดึงรูปโครงใบประกาศแนวนอนจากคลัง Supabase Storage และเตรียมพิกัดฟอนต์สำหรับพิมพ์ข้อความ
+    // ดึงรูปโครงแผ่นแบบใบประกาศ (ใช้แผ่นเปล่าไร้ชื่อผ่านตู้เซฟ Storage)
     const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
     
-    // 📍 จุดปรับตั้งระยะพิกัดและขนาดตัวอักษรของใบประกาศแนวนอน
+    // 📍 จุดปรับตั้งระนาบอักษรให้ลอยชัดเจน ไม่ซ้อนกันเด็ดขาด
     const CANVAS_CONFIG = {
-        nameFont: "bold 42px 'Sarabun', sans-serif", 
-        nameColor: "#1c140e",            
-        nameYOffset: 345,      // ปรับความสูง-ต่ำ ของชื่อผู้เข้าอบรม (คอลัมน์ D) ตรงนี้
-        dateFont: "24px 'Sarabun', sans-serif", 
-        dateColor: "#1c140e", 
-        dateYOffset: 465,      // ปรับความสูง-ต่ำ ของวันที่อบรมจริง (คอลัมน์ J) ตรงนี้
+        nameFont: "bold 40px 'Sarabun', sans-serif", 
+        nameColor: "#111827", 
+        nameYOffset: 345,      // หากชื่ออยู่สูงไปให้เพิ่มเลข ขยับลงให้ลดเลขตรงนี้ครับช่าง
+        dateFont: "bold 22px 'Sarabun', sans-serif", 
+        dateColor: "#1f2937", 
+        dateYOffset: 465,      // หากวันที่ทับซ้อนให้ปรับเลื่อนระยะพิกเซลตรงนี้ครับช่าง
         align: "center"
     };
 
     const FOLDER_CONFIG = { "STB": "1fHNt7UAIlq-9zP9LvTYhJiOd4TQs6PLb" };
-    let localParticipantsData = [];
+    let localQueueData = [];
     let bsPreviewModal;
 
     window.addEventListener('DOMContentLoaded', async () => {
@@ -134,158 +133,114 @@
         if (error) return;
         sel.innerHTML = '<option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>';
         sessions.forEach(s => { 
-            sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name} [รอบ: ${s.date}]</option>`; 
+            sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name}</option>`; 
         });
     }
 
-    async function loadParticipantsForCert() {
+    // โหลดรายชื่อและข้อมูลใบประกาศตรงจากตารางใหม่ certificates_queue บน Supabase
+    async function loadCertificatesQueue() {
         const courseKey = document.getElementById('certSessionSelect').value; 
         document.getElementById('checkAllMaster').checked = false;
         updateBatchUI();
         
         if(!courseKey) return;
         const tbody = document.getElementById('certParticipantList'); 
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm me-2"></div>กำลังดึงข้อมูลจาก Supabase...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm me-2"></div>กำลังดึงข้อมูลคิวจากตารางใบประกาศ Supabase...</td></tr>';
         
         const { data: list, error } = await supabaseClient
-            .from('registrations')
+            .from('certificates_queue')
             .select('*')
             .eq('course_key', courseKey)
-            .eq('is_checked_in', true)
-            .order('created_at', { ascending: true });
+            .order('id', { ascending: true });
             
         if(error) { 
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-5 fw-bold">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>'; 
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-5 fw-bold">เกิดข้อผิดพลาดในการโหลดตารางคิวงานใบประกาศ</td></tr>'; 
             return; 
         }
         
-        localParticipantsData = list || [];
+        localQueueData = list || [];
         tbody.innerHTML = '';
         
-        if(localParticipantsData.length === 0) { 
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> ยังไม่มีรายชื่อผู้ผ่านการเช็คอินในระบบรอบนี้</td></tr>'; 
+        if(localQueueData.length === 0) { 
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> ยังไม่มีข้อมูลคิวออกใบประกาศในหลักสูตรคอร์สนี้บนฐานข้อมูล</td></tr>'; 
             return; 
         }
 
-        localParticipantsData.forEach((row, index) => {
-            let prefixStr = row.prefix ? row.prefix + " " : "";
-            let displayNameEn = `${prefixStr}${row.full_name_en}`.trim();
-            
-            let statusBadge = `<span class="badge bg-secondary px-3 py-1.5" id="badge_${row.id}">คิวว่าง</span>`;
-            if (row.pdf_status === "รอส่ง") {
-                statusBadge = `<span class="badge bg-warning text-dark px-3 py-1.5" id="badge_${row.id}"><i class="fas fa-clock me-1"></i>รอส่งเมล</span>`;
-            } else if (row.pdf_status === "ส่งแล้ว" || row.certificate_url) {
-                statusBadge = `<span class="badge bg-success px-3 py-1.5" id="badge_${row.id}"><i class="fas fa-check-circle me-1"></i>ออกสำเร็จ</span>`;
+        localQueueData.forEach((row, index) => {
+            let statusBadge = `<span class="badge bg-secondary px-3 py-1.5" id="badge_${row.registration_id}">คิวว่าง</span>`;
+            if (row.pdf_status === "กำลังเจน") {
+                statusBadge = `<span class="badge bg-info text-dark px-3 py-1.5" id="badge_${row.registration_id}"><i class="fas fa-spinner fa-spin me-1"></i>กำลังสร้าง...</span>`;
+            } else if (row.pdf_status === "ออกสำเร็จ" || row.certificate_url) {
+                statusBadge = `<span class="badge bg-success px-3 py-1.5" id="badge_${row.registration_id}"><i class="fas fa-check-circle me-1"></i>ออกสำเร็จ</span>`;
+            } else if (row.pdf_status === "ล้มเหลว") {
+                statusBadge = `<span class="badge bg-danger px-3 py-1.5" id="badge_${row.registration_id}">ล้มเหลว</span>`;
             }
 
-            let viewBtn = row.certificate_url ? `<a href="${row.certificate_url}" target="_blank" class="btn btn-sm btn-outline-primary px-2" id="btn_view_${row.id}" title="เปิดไฟล์จริงบน Drive"><i class="fas fa-eye"></i></a>` : '';
+            let viewBtn = row.certificate_url ? `<a href="${row.certificate_url}" target="_blank" class="btn btn-sm btn-outline-primary px-2" id="btn_view_${row.registration_id}" title="เปิดดูไฟล์จริงบน Drive"><i class="fas fa-eye"></i></a>` : '';
 
             tbody.innerHTML += `
                 <tr class="hover-shadow-sm">
                     <td class="text-center">
-                        <input type="checkbox" class="form-check-input row-select cursor-pointer" value="${row.id}" data-index="${index}" onclick="onRowSelectChange()">
+                        <input type="checkbox" class="form-check-input row-select cursor-pointer" value="${row.registration_id}" data-index="${index}" onclick="onRowSelectChange()">
                     </td>
                     <td class="text-center fw-bold text-muted">${index + 1}</td>
-                    <td>
-                        <b class="text-primary fs-6">${displayNameEn}</b>
-                        <div class="text-muted small font-medium mt-0.5"><i class="far fa-user me-1"></i>${row.full_name_th}</div>
-                    </td>
-                    <td class="text-center"><code>${row.id}</code></td>
+                    <td><b class="text-primary fs-6">${row.full_name_en}</b></td>
+                    <td class="text-center font-medium text-muted">${row.training_date}</td>
                     <td class="text-center">${statusBadge}</td>
                     <td class="text-center">
                         <div class="btn-group gap-1">
-                            <button class="btn btn-sm btn-outline-info px-2" onclick="fetchTextAndPreview('${row.id}', '${row.course_key}')" title="พรีวิวตรวจสอบตำแหน่งจริง"><i class="fas fa-desktop"></i></button>
+                            <button class="btn btn-sm btn-outline-info px-2" onclick="openCanvasPreview('${index}')" title="พรีวิวตรวจสอบความสมดุลตัวอักษร"><i class="fas fa-desktop"></i></button>
                             ${viewBtn}
-                            <button class="btn btn-sm btn-success fw-bold px-2" onclick="triggerGenSingle('${row.id}', '${row.course_key}')" id="btn_gen_${row.id}"><i class="fas fa-cog"></i> GEN</button>
+                            <button class="btn btn-sm btn-success fw-bold px-2" onclick="triggerGenSingle('${row.registration_id}', '${row.course_key}')" id="btn_gen_${row.registration_id}"><i class="fas fa-cog"></i> GEN</button>
                         </div>
                     </td>
                 </tr>`;
         });
     }
 
-    // ⚡ [สถาปัตยกรรมใหม่] สั่งพรีวิวแบบดึงข้อความ Col D & Col J จาก Google Sheet ทะลุกำแพงความปลอดภัย CORS (JSONP)
-    function fetchTextAndPreview(regId, courseKey) {
+    // แสตมป์ตัวหนังสือดึงสดจากแถวข้อมูลตารางใบประกาศบนเบราว์เซอร์
+    function openCanvasPreview(index) {
+        const row = localQueueData[index];
+        if(!row) return;
+
         document.getElementById('loadingText').style.display = 'flex';
         const canvas = document.getElementById('previewCanvas');
         canvas.classList.add('d-none');
         bsPreviewModal.show();
 
-        // ฝังแท็กพิเศษดึงข้อความจากสคริปต์หลังบ้านโดยไม่โดนเบราว์เซอร์บล็อก
-        const script = document.createElement('script');
-        script.src = `${GOOGLE_SHEET_API}?action=getCertData&courseKey=${courseKey}&callback=renderCanvasPreview&targetRegId=${regId}`;
-        
-        script.onerror = function() {
-            document.getElementById('loadingText').style.display = 'none';
-            bsPreviewModal.hide();
-            Swal.fire('พรีวิวล้มเหลว', 'ไม่สามารถเชื่อมต่อสะพานข้อมูลฝั่ง Google Sheet ได้ครับ', 'error');
-        };
-        document.body.appendChild(script);
-    }
-
-    // 🎨 ฟังก์ชันรับท่อนข้อมูลตัวหนังสือจากสเปรดชีตมาแสตมป์ภาพพรีวิวความเร็วสูงผ่านกระดาน Canvas
-    window.renderCanvasPreview = function(result) {
-        // ลบสคริปต์ดึงข้อมูลออกเพื่อรักษาความสะอาดของหน่วยความจำหน้าเว็บ
-        const scripts = document.querySelectorAll('script[src*="action=getCertData"]');
-        scripts.forEach(s => s.remove());
-
-        const canvas = document.getElementById('previewCanvas');
-        
-        if (!result.success || !result.data) {
-            document.getElementById('loadingText').style.display = 'none';
-            bsPreviewModal.hide();
-            Swal.fire('ไม่พบรายชื่อ', 'ไม่พบข้อมูลแถวของนักเรียนรายนี้บน Google Sheet ครับ', 'warning');
-            return;
-        }
-
-        // ค้นหาหาแถวข้อมูลเฉพาะเจาะจงของคนที่เรากดเลือกพรีวิว
-        // ใช้ชื่อตัวแปรพารามิเตอร์แกะหาจากแท็กคำสั่ง
-        const urlParams = new URLSearchParams(scripts[scripts.length-1]?.src.split('?')[1]);
-        const targetId = urlParams.get('targetRegId');
-        const studentData = result.data.find(item => item.regId === targetId);
-
-        if (!studentData) {
-            document.getElementById('loadingText').style.display = 'none';
-            bsPreviewModal.hide();
-            Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูล Mapping สำหรับรหัสผู้เรียนคนนี้บน Sheet', 'error');
-            return;
-        }
-
-        let fullNameStr = studentData.fullName || "ไม่ระบุชื่อ";
-        let dateStr = studentData.dateStr || "ไม่ระบุวันที่";
-
-        document.fonts.load("bold 42px 'Sarabun'").then(() => {
+        document.fonts.load(CANVAS_CONFIG.nameFont).then(() => {
             const img = new Image();
-            img.crossOrigin = "Anonymous"; // แลกเปลี่ยนสิทธิ์ Header ข้ามระบบ
+            img.crossOrigin = "Anonymous"; 
             img.onload = function() {
                 canvas.width = img.width;
                 canvas.height = img.height;
                 const ctx = canvas.getContext('2d');
                 
-                ctx.clearRect(0, 0, canvas.width, canvas.height); // ล้างคราบเงาเก่าออกทิ้ง 100%
-                ctx.drawImage(img, 0, 0); // วาดรูปโครงพื้นหลัง
+                ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                ctx.drawImage(img, 0, 0); 
 
                 let centerX = img.width / 2;
 
-                // ✍️ แสตมป์พิมพ์ชื่อผู้เข้าอบรม (Col D) ลงตามระยะช่องว่างสไลด์
+                // พิมพ์ชื่อสดจากฟิลด์ full_name_en
                 ctx.font = CANVAS_CONFIG.nameFont;
                 ctx.fillStyle = CANVAS_CONFIG.nameColor;
                 ctx.textAlign = CANVAS_CONFIG.align;
-                ctx.fillText(fullNameStr, centerX, CANVAS_CONFIG.nameYOffset);
+                ctx.fillText(row.full_name_en, centerX, CANVAS_CONFIG.nameYOffset);
 
-                // ✍️ แสตมป์พิมพ์วันที่สำเร็จการฝึกอบรม (Col J) ลงตามบรรทัดสไลด์ล่าง
+                // พิมพ์วันที่อบรมสดจากฟิลด์ training_date
                 ctx.font = CANVAS_CONFIG.dateFont;
                 ctx.fillStyle = CANVAS_CONFIG.dateColor;
-                ctx.fillText(dateStr, centerX, CANVAS_CONFIG.dateYOffset);
+                ctx.fillText(row.training_date, centerX, CANVAS_CONFIG.dateYOffset);
 
                 document.getElementById('loadingText').style.display = 'none';
                 canvas.classList.remove('d-none');
             };
             img.onerror = function() {
                 document.getElementById('loadingText').style.display = 'none';
-                Swal.fire('สิทธิ์ CORS', 'กรุณาเปิดสิทธิ์สากล Allowed Origins เป็นเครื่องหมาย (*) ในหน้า Bucket Settings บนระบบ Supabase Storage ด้วยครับช่าง', 'warning');
+                Swal.fire('ข้อผิดพลาด', 'ภาพต้นแบบขัดข้องเรื่องลิขสิทธิ์ความปลอดภัย CORS ของโฮสต์', 'error');
                 bsPreviewModal.hide();
             };
-            img.src = TEMPLATE_IMAGE_URL + "?t=" + new Date().getTime();
+            img.src = TEMPLATE_IMAGE_URL + "?refresh=" + new Date().getTime();
         });
     }
 
@@ -350,11 +305,11 @@
         
         if (selectedCbs.length > CHUNK_SIZE) {
             const confirmRes = await Swal.fire({
-                title: 'จัดสรรคิวงานกลุ่มย่อย',
-                html: `คุณเลือกรายชื่อทั้งหมด <b>${selectedCbs.length} รายการ</b> ระบบจะทำการแยกคิวประมวลผลก้อนแรกจำนวน <b>${CHUNK_SIZE} รายการ</b> เพื่อรักษาเสถียรภาพสากลของสคริปต์ครับ`,
+                title: 'จัดระเบียบคิวงานชุดใหญ่',
+                html: `คุณเลือกรายชื่อทั้งหมด <b>${selectedCbs.length} รายการ</b> ระบบจะแบ่งรอบรันก้อนย่อยแรกจำนวน <b>${CHUNK_SIZE} รายการ</b> เพื่อความเสถียรสูงสุดตามมาตรฐานความปลอดภัยสากลครับ`,
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonText: 'รันก้อนแรก (40 คน)',
+                confirmButtonText: 'เริ่มรันก้อนแรก (40 คน)',
                 cancelButtonText: 'ยกเลิก',
                 confirmButtonColor: '#1976d2'
             });
@@ -365,11 +320,11 @@
         const courseKey = document.getElementById('certSessionSelect').value;
 
         mainBtn.disabled = true;
-        mainBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> กำลังรันคิวกลุ่มก้อนย่อย...`;
+        mainBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> กำลังประมวลผลคิวกลุ่ม...`;
 
         Swal.fire({
-            title: `กำลังประมวลผลออกไฟล์ PDF`,
-            html: `ระบบกำลังสั่งรันใบประกาศจำนวน <b>${currentBatchCbs.length} รายการ</b> ในรอบนี้<br><small class="text-danger">⚠️ ห้ามปิดหรือรีเฟรชหน้าต่างนี้เด็ดขาด</small>`,
+            title: `กำลังส่งคิวให้เซิร์ฟเวอร์ Google`,
+            html: `ระบบปฏิบัติการกำลังทยอยรันใบประกาศจำนวน <b>${currentBatchCbs.length} รายการ</b> ในก้อนนี้<br><small class="text-danger">⚠️ ห้ามปิดหน้านี้เด็ดขาดจนกว่าจะเสร็จสิ้นภารกิจ</small>`,
             icon: 'info',
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -387,7 +342,7 @@
                 cb.checked = false; 
             }
             if(i < currentBatchCbs.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 1500)); // ถ่วงคิว 1.5 วินาที
+                await new Promise(resolve => setTimeout(resolve, 1500)); // เว้นจังหวะเซฟโซน 1.5 วินาที
             }
         }
 
@@ -398,14 +353,14 @@
         const remainingTotal = selectedCbs.length - currentBatchCbs.length;
         if (remainingTotal > 0) {
             Swal.fire({
-                title: 'ประมวลผลก้อนแรกสำเร็จ',
-                html: `จัดทำเอกสารเสร็จสิ้น <b>${successCount} ใบ</b><br>ยังมีรายชื่อตกค้างอีก <b>${remainingTotal} แถว</b> สามารถสั่งรันต่อรอบถัดไปได้ทันทีครับ`,
+                title: 'จบรอบแรกเรียบร้อย',
+                html: `ทำเสร็จสมบูรณ์แล้ว <b>${successCount} ใบ</b><br><br>มีคิวคงค้างอยู่อีก <b>${remainingTotal} แถว</b> สามารถกดสั่งเพื่อเริ่มรันก้อนงานถัดไปได้ทันทีครับช่าง`,
                 icon: 'success'
             });
         } else {
-            Swal.fire('จบคิวงานสมบูรณ์', `ทำการออกใบประกาศครบถ้วนเรียบร้อยทั้งหมดแล้วครับช่าง!`, 'success');
+            Swal.fire('ประมวลผลเสร็จสิ้นทั้งหมด', `ระบบได้จัดทำเอกสารใบประกาศตัวจริงลงคลังและคิวงานสากลเรียบร้อยครบถ้วนแล้วครับช่าง!`, 'success');
         }
-        loadParticipantsForCert();
+        loadCertificatesQueue();
     }
 </script>
 </body>

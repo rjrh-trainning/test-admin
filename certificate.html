@@ -116,19 +116,17 @@
 <script src="config.js"></script>
 
 <script>
-    // 🎯 ล็อกไฟล์แม่แบบภาพเดี่ยวขนาด 1920x1080
     const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
     
-    // 🎯 ล็อกชุดโครงสร้างระนาบดิ่ง สี และขนาดฟอนต์ให้กลืนทับตำแหน่งสีเทาเดิมเนียนสนิท (อักษรดำ)
+    // 🎯 CONFIG: ขนาดฟอนต์ใหญ่เด่นชัดเจน และพิกัดดิ่งสำหรับสเกลรูปภาพจริง 1920x1080 พิกเซล
     const TEXT_CONFIG = {
-        nameFont: "bold 80px 'Libre Franklin', sans-serif", // ขยายชื่อจาก 40px เป็น 65px
-        nameColor: "#000000",                               
-        nameYOffset: 750,                                   // ขยับชื่อลงมาจาก 575 เป็น 615
-        dateFont: "600 44px 'Libre Franklin', sans-serif",  // ขยายวันที่จาก 24px เป็น 32px และเพิ่มความเข้มเป็น 600
-        dateColor: "#000000",                               
-        dateYOffset: 920,                                   // ขยับวันที่ลงมาจาก 835 เป็น 865
-        align: "center",             
-        xOffset: "center" 
+        nameFont: "bold 65px 'Libre Franklin', sans-serif", // ขนาดใหญ่เต็มตาสไตล์สากล
+        nameColor: "#000000",                               // 🎨 สีดำสนิท
+        nameYOffset: 615,                                   // 📍 จุดพิกัดกึ่งกลางช่องชื่อภาษาอังกฤษ
+        dateFont: "600 32px 'Libre Franklin', sans-serif",  // ขนาดวันที่ชัดเจน
+        dateColor: "#000000",                               // 🎨 สีดำสนิท
+        dateYOffset: 865,                                   // 📍 จุดพิกัดกึ่งกลางช่องวันที่ด้านล่าง
+        align: "center"
     };
 
     const FOLDER_CONFIG = { "STB": "1fHNt7UAIlq-9zP9LvTYhJiOd4TQs6PLb" };
@@ -138,39 +136,17 @@
     window.addEventListener('DOMContentLoaded', async () => {
         if (typeof checkAuthGuard === 'function') { await checkAuthGuard(); }
         loadSessions();
-        preloadTemplate(); // 🚀 โหลดรูปรอมนแรมหน้าบ้านทันที
+        preloadTemplate(); 
     });
 
     function preloadTemplate() {
         preloadedTemplateImage = new Image();
         preloadedTemplateImage.crossOrigin = "Anonymous";
         preloadedTemplateImage.src = TEMPLATE_IMAGE_URL; 
+        
+        // สั่งเบราว์เซอร์ดาวน์โหลดโครงสร้างฟอนต์สากล Libre Franklin เตรียมพร้อมทันที
         document.fonts.load(TEXT_CONFIG.nameFont);
-    }
-
-    function showToast(message, type = 'success') {
-      const container = document.getElementById('toast-container');
-      const toast = document.createElement('div');
-      let bgClass = 'bg-white border-l-4 border-green-500 text-slate-800';
-      let icon = `<svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`;
-      
-      if (type === 'error') {
-        bgClass = 'bg-white border-l-4 border-rose-500 text-slate-800';
-        icon = `<svg class="w-5 h-5 text-rose-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>`;
-      } else if (type === 'info') {
-        bgClass = 'bg-white border-l-4 border-sky-500 text-slate-800';
-        icon = `<svg class="w-5 h-5 text-sky-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-1 9a1 1 0 102 0v-4a1 1 0 00-2 0v4z" clip-rule="evenodd"></path></svg>`;
-      }
-
-      toast.className = `p-4 rounded-2xl shadow-xl flex items-center gap-3 border border-slate-100 transform translate-y-2 opacity-0 transition-all duration-300 ${bgClass} animate-pop`;
-      toast.innerHTML = `<div class="flex-shrink-0">${icon}</div><div class="font-bold text-sm">${message}</div>`;
-      container.appendChild(toast);
-      
-      setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 50);
-      setTimeout(() => {
-        toast.classList.add('opacity-0', 'translate-y-2');
-        setTimeout(() => toast.remove(), 300);
-      }, 4000);
+        document.fonts.load(TEXT_CONFIG.dateFont);
     }
 
     async function loadSessions() {
@@ -248,8 +224,7 @@
         });
     }
 
-    // ⚡ พรีวิวความเร็วแสง (คุม เปิด/ปิด ด้วยวิธีลบ/เพิ่มคลาส Tailwind ไม่ค้างแน่นอนช่าง)
-  // ⚡ ฟังก์ชันพรีวิวฉบับแก้ไขบัค ฟอนต์ไม่โหลด/ตัวหนังสือไม่ยอมเลื่อนตำแหน่ง
+    // ⚡ ฟังก์ชันเรนเดอร์พรีวิวอุดรอยบัคสเกลเพลี้ยน
     function fetchTextAndPreviewFast(index) {
         const row = localQueueData[index];
         if (!row) {
@@ -263,62 +238,63 @@
         
         canvas.classList.add('hidden');
         loader.classList.remove('hidden');
-        modal.classList.remove('hidden'); // เปิดหน้าต่างพรีวิว
+        modal.classList.remove('hidden'); 
 
         let fullNameStr = row.full_name_en || "ไม่ระบุชื่อ";
         let dateStr = row.training_date || "27/05/2026"; 
 
-        // 🎯 ฟังก์ชันภายในสำหรับวาดรูปและข้อความลง Canvas
+        // 🎯 บล็อกฟังก์ชันวาดแบบสลักระนาบพิกเซลตรง 1920x1080 (ห้ามเดาสเกลออโต้)
         function drawCanvasContent(imgObj) {
-            canvas.width = imgObj.width;
-            canvas.height = imgObj.height;
-            const ctx = canvas.getContext('2d');
+            // 🔥 KEY BUGFIXED: บังคับล็อกสเกล Canvas ให้แมตช์พิกเซลจริงของเทมเพลตต้นฉบับ ป้องกันตัวหนังสือจมดินตกขอบ
+            canvas.width = 1920;
+            canvas.height = 1080;
             
+            const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height); 
-            ctx.drawImage(imgObj, 0, 0); 
+            
+            // วาดรูปพื้นหลังแบบเต็มความละเอียด
+            ctx.drawImage(imgObj, 0, 0, 1920, 1080); 
 
-            let centerX = imgObj.width / 2;
+            let centerX = 1920 / 2;
 
-            // วาดชื่อ (ปรับพิกัดดิ่งลงมาและตั้งค่าฟอนต์)
+            // 🎨 วาดข้อความชื่อ สีดำตัวหนา 65px ขยับลงมาตรงช่องกึ่งกลางพอดีเป๊ะ
             ctx.font = TEXT_CONFIG.nameFont;
             ctx.fillStyle = TEXT_CONFIG.nameColor;
             ctx.textAlign = TEXT_CONFIG.align;
-            ctx.textBaseline = "middle"; // ล็อกแกนกลางตัวอักษรเพื่อความแม่นยำ
+            ctx.textBaseline = "middle"; 
             ctx.fillText(fullNameStr, centerX, TEXT_CONFIG.nameYOffset);
 
-            // วาดวันที่ (ปรับพิกัดดิ่งลงมาและตั้งค่าฟอนต์)
+            // 🎨 วาดข้อความวันที่ สีดำตัวหนา 32px ขยับลงช่องวันที่ด้านล่างพอดีเป๊ะ
             ctx.font = TEXT_CONFIG.dateFont;
             ctx.fillStyle = TEXT_CONFIG.dateColor;
-            ctx.textBaseline = "middle"; // ล็อกแกนกลางตัวอักษรเพื่อความแม่นยำ
+            ctx.textBaseline = "middle"; 
             ctx.fillText(dateStr, centerX, TEXT_CONFIG.dateYOffset);
 
             loader.classList.add('hidden');
             canvas.classList.remove('hidden');
         }
 
-        // 🚀 กลไกป้องกัน: บังคับรอให้โหลดทั้ง "ฟอนต์คอมพิวเตอร์" และ "รูปภาพแม่แบบ" เสร็จชัวร์ ๆ ก่อนวาด
+        // 🚀 รันระบบความปลอดภัย ตรวจสอบการดาวน์โหลดฟอนต์และโครงสร้างรูปภาพก่อนเริ่มประทับอักษร
         Promise.all([
             document.fonts.load(TEXT_CONFIG.nameFont),
             document.fonts.load(TEXT_CONFIG.dateFont)
         ]).then(() => {
-            if (preloadedTemplateImage && preloadedTemplateImage.complete && preloadedTemplateImage.naturalWidth !== 0) {
+            if (preloadedTemplateImage && preloadedTemplateImage.complete) {
                 drawCanvasContent(preloadedTemplateImage);
             } else {
-                preloadedTemplateImage.onload = function() {
-                    drawCanvasContent(preloadedTemplateImage);
-                };
+                preloadedTemplateImage.onload = function() { drawCanvasContent(preloadedTemplateImage); };
                 preloadedTemplateImage.onerror = function() {
                     loader.classList.add('hidden');
-                    showToast("ไม่สามารถเรนเดอร์ดึงภาพประกอบได้สำเร็จ", "error");
+                    showToast("ไม่สามารถดาวน์โหลดรูปใบประกาศเพื่อนำมาวาดได้", "error");
                     closePreviewModal();
                 };
             }
         }).catch(err => {
-            console.error("Font loading error:", err);
-            // หากฟอนต์โหลดช้า ให้พยายามวาดด้วยฟอนต์ระบบไปก่อนเพื่อไม่ให้หน้าจอค้าง
+            console.error("Font Load Error:", err);
             if (preloadedTemplateImage) { drawCanvasContent(preloadedTemplateImage); }
         });
     }
+
     function toggleSelectAll(master) {
         const checkboxes = document.querySelectorAll('.row-select');
         checkboxes.forEach(cb => cb.checked = master.checked);
@@ -346,7 +322,7 @@
     }
 
     function closePreviewModal() {
-        document.getElementById('previewModal').classList.add('hidden'); // 🎯 ปิด Modal ทางตรง
+        document.getElementById('previewModal').classList.add('hidden'); 
     }
 
     async function triggerGenSingle(regId, courseKey) {

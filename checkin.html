@@ -194,10 +194,6 @@
                     ? `<span class="badge bg-light-success border border-success text-success fw-bold py-2 px-3"><i class="fas fa-check-circle me-1"></i> เช็คอินแล้ว</span>`
                     : `<span class="badge bg-light-secondary border text-secondary fw-bold py-2 px-3"><i class="fas fa-clock me-1"></i> ยังไม่เช็คอิน</span>`;
 
-                let btnColor = selectedMode === 'IN' ? 'btn-success' : 'btn-warning';
-                let btnText = selectedMode === 'IN' ? 'บันทึกเช็คอินคอร์สนี้' : 'ยกเลิกเช็คอินคอร์สนี้';
-                let btnIcon = selectedMode === 'IN' ? 'fa-sign-in-alt' : 'fa-sign-out-alt';
-
                 htmlContent += `
                     <div class="card p-3 border-light bg-light mb-3" id="course-card-${index}">
                         <div class="d-flex justify-content-between align-items-start mb-2">
@@ -210,11 +206,28 @@
                         <div class="d-flex gap-2 align-items-center mt-2">
                             ${pdpaBadge}
                             <small class="text-muted ms-auto">ID: ${user.id}</small>
-                        </div>
+                        </div>`;
+
+                // 🎯 เพิ่มการดักจับเงื่อนไข: หากอยู่ในโหมดเช็คอิน (IN) แล้วผู้เรียน "เช็คอินไปแล้ว" ให้ทำลายปุ่มทิ้งและแสดงข้อความแจ้งเตือนแทน
+                if (selectedMode === "IN" && user.is_checked_in) {
+                    htmlContent += `
+                        <div class="alert alert-success border-success text-center mb-0 mt-3 py-2 fw-bold small">
+                            <i class="fas fa-check-circle me-1"></i> ท่านได้เช็คอินในหลักสูตรนี้เรียบร้อยแล้ว
+                        </div>`;
+                } 
+                // 🎯 กรณีปกติ: แสดงปุ่มตามโหมดงานที่เลือก
+                else {
+                    let btnColor = selectedMode === 'IN' ? 'btn-success' : 'btn-warning';
+                    let btnText = selectedMode === 'IN' ? 'บันทึกเช็คอินคอร์สนี้' : 'ยกเลิกเช็คอินคอร์สนี้';
+                    let btnIcon = selectedMode === 'IN' ? 'fa-sign-in-alt' : 'fa-sign-out-alt';
+
+                    htmlContent += `
                         <button class="btn ${btnColor} btn-sm w-100 fw-bold mt-3 py-2 shadow-sm" id="btn-action-${index}" onclick="commitCheckInSpecific(${index}, '${selectedMode}')">
                             <i class="fas ${btnIcon} me-1"></i> ${btnText}
-                        </button>
-                    </div>`;
+                        </button>`;
+                }
+
+                htmlContent += `</div>`;
             });
 
             htmlContent += `</div></div></div>`;
@@ -239,9 +252,11 @@
         const courseCard = document.getElementById(`course-card-${index}`);
         const user = fetchedRecords[index];
         
-        const originalBtnContent = actionBtn.innerHTML;
-        actionBtn.disabled = true;
-        actionBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>กำลังประมวลผล...`;
+        const originalBtnContent = actionBtn ? actionBtn.innerHTML : '';
+        if(actionBtn) {
+            actionBtn.disabled = true;
+            actionBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>กำลังประมวลผล...`;
+        }
 
         try {
             if (selectedMode === "IN") {
@@ -279,6 +294,7 @@
                     console.error("GAS Sync Error:", gasErr);
                 }
 
+                // สแตมป์สถานะล็อกความสำเร็จทันทีหลังบันทึก
                 courseCard.innerHTML = `
                     <div class="alert alert-success border-success text-center mb-0 py-3 fw-bold">
                         <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จแล้ว!
@@ -297,6 +313,7 @@
                     .delete()
                     .eq('registration_id', String(user.id).trim());
 
+                // สแตมป์สถานะเมื่อกดยกเลิกสิทธิ์
                 courseCard.innerHTML = `
                     <div class="alert alert-warning border-warning text-center mb-0 py-3 fw-bold">
                         <i class="fas fa-minus-circle me-1"></i> ยกเลิกสิทธิ์หลักสูตร [${user.course_key}] เรียบร้อย
@@ -307,8 +324,10 @@
 
         } catch (e) {
             Swal.fire('เกิดข้อผิดพลาด', e.message, 'error');
-            actionBtn.disabled = false;
-            actionBtn.innerHTML = originalBtnContent;
+            if(actionBtn) {
+                actionBtn.disabled = false;
+                actionBtn.innerHTML = originalBtnContent;
+            }
         } finally { 
             isProcessing = false; 
         }

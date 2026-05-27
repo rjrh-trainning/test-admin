@@ -68,7 +68,11 @@
 
     window.addEventListener('DOMContentLoaded', async () => {
         if (typeof checkAuthGuard === 'function') {
-            await checkAuthGuard();
+            try {
+                await checkAuthGuard();
+            } catch (e) {
+                console.error("Auth Guard Error:", e);
+            }
         }
     });
 
@@ -77,7 +81,6 @@
         document.getElementById('cameraStartSection').style.display = 'none';
         document.getElementById('scannerContainer').style.display = 'block';
         
-        // บังคับให้สร้าง Instance ใหม่ทุกครั้งที่เปิด ป้องกันกล้องค้างคิวเดิม
         if (html5QrCode) {
             try { await html5QrCode.clear(); } catch(e){}
         }
@@ -141,6 +144,15 @@
         const resultDiv = document.getElementById('actionResult'); 
         resultDiv.style.display = 'none';
 
+        // ป้องกันกรณี supabaseClient ยังไม่พร้อมทำงาน
+        if (typeof supabaseClient === 'undefined') {
+            Swal.fire('ข้อผิดพลาด', 'ไม่พบการตั้งค่าฐานข้อมูล Supabase กรุณาตรวจสอบไฟล์ config.js', 'error');
+            document.getElementById('searchLoader').style.display = 'none';
+            if(btnManual) btnManual.disabled = false;
+            isProcessing = false;
+            return;
+        }
+
         try {
             let { data: results, error: fetchError } = await supabaseClient
                 .from('registrations')
@@ -190,8 +202,8 @@
         } catch (e) {
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
-        } tragedy { 
-            // 💡 แก้ไขคำว่า finaly -> เป็น finally ให้ถูกต้องแล้วครับ
+        } finally { 
+            // 🛠️ แก้ไขวิกฤติตัวสะกดจาก tragedy -> เป็น finally เรียบร้อยครับป๋า!
             document.getElementById('searchLoader').style.display = 'none';
             if(btnManual) btnManual.disabled = false;
             isProcessing = false; 

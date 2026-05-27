@@ -249,6 +249,7 @@
     }
 
     // ⚡ พรีวิวความเร็วแสง (คุม เปิด/ปิด ด้วยวิธีลบ/เพิ่มคลาส Tailwind ไม่ค้างแน่นอนช่าง)
+  // ⚡ ฟังก์ชันพรีวิวฉบับแก้ไขบัค ฟอนต์ไม่โหลด/ตัวหนังสือไม่ยอมเลื่อนตำแหน่ง
     function fetchTextAndPreviewFast(index) {
         const row = localQueueData[index];
         if (!row) {
@@ -262,11 +263,12 @@
         
         canvas.classList.add('hidden');
         loader.classList.remove('hidden');
-        modal.classList.remove('hidden'); // 🎯 เปิด Modal ด้วยคลาส Tailwind ทางตรงแทน Bootstrap
+        modal.classList.remove('hidden'); // เปิดหน้าต่างพรีวิว
 
         let fullNameStr = row.full_name_en || "ไม่ระบุชื่อ";
         let dateStr = row.training_date || "27/05/2026"; 
 
+        // 🎯 ฟังก์ชันภายในสำหรับวาดรูปและข้อความลง Canvas
         function drawCanvasContent(imgObj) {
             canvas.width = imgObj.width;
             canvas.height = imgObj.height;
@@ -277,33 +279,46 @@
 
             let centerX = imgObj.width / 2;
 
+            // วาดชื่อ (ปรับพิกัดดิ่งลงมาและตั้งค่าฟอนต์)
             ctx.font = TEXT_CONFIG.nameFont;
             ctx.fillStyle = TEXT_CONFIG.nameColor;
             ctx.textAlign = TEXT_CONFIG.align;
+            ctx.textBaseline = "middle"; // ล็อกแกนกลางตัวอักษรเพื่อความแม่นยำ
             ctx.fillText(fullNameStr, centerX, TEXT_CONFIG.nameYOffset);
 
+            // วาดวันที่ (ปรับพิกัดดิ่งลงมาและตั้งค่าฟอนต์)
             ctx.font = TEXT_CONFIG.dateFont;
             ctx.fillStyle = TEXT_CONFIG.dateColor;
+            ctx.textBaseline = "middle"; // ล็อกแกนกลางตัวอักษรเพื่อความแม่นยำ
             ctx.fillText(dateStr, centerX, TEXT_CONFIG.dateYOffset);
 
             loader.classList.add('hidden');
             canvas.classList.remove('hidden');
         }
 
-        if (preloadedTemplateImage && preloadedTemplateImage.complete && preloadedTemplateImage.naturalWidth !== 0) {
-            drawCanvasContent(preloadedTemplateImage);
-        } else {
-            preloadedTemplateImage.onload = function() {
+        // 🚀 กลไกป้องกัน: บังคับรอให้โหลดทั้ง "ฟอนต์คอมพิวเตอร์" และ "รูปภาพแม่แบบ" เสร็จชัวร์ ๆ ก่อนวาด
+        Promise.all([
+            document.fonts.load(TEXT_CONFIG.nameFont),
+            document.fonts.load(TEXT_CONFIG.dateFont)
+        ]).then(() => {
+            if (preloadedTemplateImage && preloadedTemplateImage.complete && preloadedTemplateImage.naturalWidth !== 0) {
                 drawCanvasContent(preloadedTemplateImage);
-            };
-            preloadedTemplateImage.onerror = function() {
-                loader.classList.add('hidden');
-                showToast("ไม่สามารถเรนเดอร์ดึงภาพประกอบได้สำเร็จ", "error");
-                closePreviewModal();
-            };
-        }
+            } else {
+                preloadedTemplateImage.onload = function() {
+                    drawCanvasContent(preloadedTemplateImage);
+                };
+                preloadedTemplateImage.onerror = function() {
+                    loader.classList.add('hidden');
+                    showToast("ไม่สามารถเรนเดอร์ดึงภาพประกอบได้สำเร็จ", "error");
+                    closePreviewModal();
+                };
+            }
+        }).catch(err => {
+            console.error("Font loading error:", err);
+            // หากฟอนต์โหลดช้า ให้พยายามวาดด้วยฟอนต์ระบบไปก่อนเพื่อไม่ให้หน้าจอค้าง
+            if (preloadedTemplateImage) { drawCanvasContent(preloadedTemplateImage); }
+        });
     }
-
     function toggleSelectAll(master) {
         const checkboxes = document.querySelectorAll('.row-select');
         checkboxes.forEach(cb => cb.checked = master.checked);

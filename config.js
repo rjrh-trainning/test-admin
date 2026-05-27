@@ -5,7 +5,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // 🎯 Google Apps Script Web App APIs 
 // ⚠️ สำคัญมาก: ตรงนี้ต้องมั่นใจว่าเป็น URL ที่ได้จากการ Deploy "เวอร์ชันใหม่" (New Version) หลังจากที่เราแยกไฟล์ GAS แล้วนะครับ
-const GOOGLE_SHEET_API = "https://script.google.com/macros/s/AKfycbwh1jdhZoHbyAl4iFWFnQyDNLiSwkmhG9kVMBUY97Pt9qyKN-_ju73SPdqpekx9IHp0/exec";
+const GOOGLE_SHEET_API = "https://script.google.com/macros/s/AKfycbw1bS3fjGQngjLdKssc8yWzmbQ1gKOvTvUxraCU2eIHNxjvyyAj3iIqGcey_ETZK3pk/exec";
 const MAIN_REG_API_URL = GOOGLE_SHEET_API; // 🛠️ เสริมตัวแปรนี้เข้ามาเพื่อรองรับโค้ดเก่าใน checkin.html ไม่ให้หลุดโฟลว์
 
 const CERT_STB_API = "https://script.google.com/macros/s/AKfycby0ebBHlmguiJX9RYqX7cBhKV7Cni42Xn6IsJfbjvS2EIZFrBJpu31fI2gQ2Xm5cOEh/exec";

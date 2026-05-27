@@ -144,7 +144,6 @@
 
             let prefixStr = user.prefix ? user.prefix + " " : "";
 
-            // เปลี่ยนข้อความบนปุ่มให้ตรงกับ action ปัจจุบัน
             let actionButton = selectedMode === 'IN' 
                 ? `<button class="btn btn-success btn-lg w-100 fw-bold mt-3 shadow-sm" onclick="commitCheckIn('IN')"><i class="fas fa-sign-in-alt me-2"></i> ยืนยันบันทึกเช็คอิน</button>`
                 : `<button class="btn btn-warning btn-lg w-100 fw-bold mt-3 shadow-sm" onclick="commitCheckIn('OUT')"><i class="fas fa-sign-out-alt me-2"></i> ยืนยันยกเลิกการเช็คอิน</button>`;
@@ -167,6 +166,9 @@
         } catch (e) {
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
+        } catch (e) {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
         } finally { 
             document.getElementById('searchLoader').style.display = 'none';
             if(btnManual) btnManual.disabled = false;
@@ -174,26 +176,72 @@
         }
     }
 
+    // ⚡ [ผ่าตัดอัปเกรดระบบไฮบริด] เดิน Data Flow ตามลำดับเงื่อนไขใหม่สากลของช่าง
     async function commitCheckIn(selectedMode) {
         if(isProcessing || !pendingUser) return;
         isProcessing = true;
         const resultDiv = document.getElementById('actionResult'); 
         const user = pendingUser;
         
-        resultDiv.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary mb-2"></div><br>กำลังบันทึกสถานะลงฐานข้อมูล...</div>`;
+        resultDiv.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary mb-2"></div><br>กำลังประมวลผลระบบฐานข้อมูลไฮบริด...</div>`;
 
         try {
-            // บันทึกเฉพาะข้อมูลลงฐานข้อมูล Supabase
-            let updateField = selectedMode === "IN" ? { is_checked_in: true, checked_in_at: new Date() } : { is_checked_in: false, checked_in_at: null };
-            const { error: updateError } = await supabaseClient.from('registrations').update(updateField).eq('id', user.id);
-            if (updateError) throw updateError;
+            if (selectedMode === "IN") {
+                // 1. สั่งตารางหลัก registrations บน Supabase อัปเดตเวลาเช็คอิน
+                let nowTime = new Date().toISOString();
+                const { error: updateError } = await supabaseClient
+                    .from('registrations')
+                    .update({ is_checked_in: true, checked_in_at: nowTime })
+                    .eq('id', user.id);
+                if (updateError) throw new Error("บันทึกประวัติตารางหลักล้มเหลว: " + updateError.message);
 
-            // --- เอาโค้ดส่วนที่ fetch(GOOGLE_SHEET_API) ออกไปแล้วตามคำขอครับ ---
+                // 2. สั่งส่งข้อมูล ชื่ออังกฤษ และ วันที่อบรมตัวจริง วิ่งเข้าจ่อคิวพิมพ์ตาราง certificates_queue บน Supabase 
+                let finalPrefix = user.prefix ? user.prefix + " " : "";
+                let finalFullNameEn = `${finalPrefix}${user.full_name_en}`.trim();
+                let finalTrainingDate = user.training_date || user.session_info.date || "ไม่ระบุรอบ";
+
+                const { error: queueError } = await supabaseClient
+                    .from('certificates_queue')
+                    .insert([{
+                        registration_id: String(user.id).trim(),
+                        course_key: String(user.course_key).trim(),
+                        full_name_en: finalFullNameEn,
+                        training_date: finalTrainingDate,
+                        pdf_status: "คิวว่าง"
+                    }]);
+                if (queueError) throw new Error("ส่งชื่อเข้าตารางคิวใบประกาศล้มเหลว: " + queueError.message);
+
+                // 3. ยิงสิทธิ HTTP POST ส่งค่าข้ามมิติเพื่อสั่งให้ GAS นำข้อมูลความเคลื่อนไหวไปรายงานผลลง Sheet คอร์ส
+                const response = await fetch(MAIN_REG_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                        action: "checkInSuccess",
+                        payload: { id: user.id }
+                    })
+                });
+                const gasResult = await response.json();
+                console.log("ผลลัพธ์ตอบกลับจากเซิร์ฟเวอร์ Google:", gasResult);
+
+            } else {
+                // 🔄 โหมดคืนสิทธิ์ (เช็คเอาท์/ยกเลิก): ปรับตารางหลักใน Supabase กลับเป็นค่าว่าง
+                const { error: clearError } = await supabaseClient
+                    .from('registrations')
+                    .update({ is_checked_in: false, checked_in_at: null })
+                    .eq('id', user.id);
+                if (clearError) throw clearError;
+
+                // สั่งทำลายคิวงานใบประกาศในตาราง certificates_queue ทิ้งเพื่อล้างบอร์ดพิมพ์
+                await supabaseClient
+                    .from('certificates_queue')
+                    .delete()
+                    .eq('registration_id', user.id);
+            }
 
             resultDiv.innerHTML = `
                 <div class="alert alert-success text-center fw-bold fs-5 py-3 mb-0">
                     <i class="fas fa-check-circle me-2"></i>
-                    ${selectedMode === "IN" ? 'บันทึกเช็คอินเรียบร้อย!' : 'ยกเลิกสถานะเช็คอินเรียบร้อยแล้ว!'}<br>
+                    ${selectedMode === "IN" ? 'บันทึกเช็คอินสลักคิวงานสมบูรณ์!' : 'ยกเลิกสถานะเช็คอินและคิวใบประกาศแล้ว!'}<br>
                     <span class="text-primary">${user.full_name_th}</span>
                 </div>`;
             pendingUser = null;

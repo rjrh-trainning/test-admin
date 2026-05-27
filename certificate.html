@@ -21,7 +21,7 @@
     <nav class="navbar navbar-dark shadow-sm mb-4">
         <div class="container d-flex justify-content-between align-items-center">
             <span class="navbar-brand fw-bold d-flex align-items-center">
-                <i class="fas fa-certificate me-2 text-warning"></i> RJRH - ฝ่ายออกใบวุฒิบัตร (ข้อมูลจาก Supabase & คิวไฮบริด)
+                <i class="fas fa-certificate me-2 text-warning"></i> RJRH - ฝ่ายออกใบวุฒิบัตร (สถาปัตยกรรมคิวงานไฮบริด)
             </span>
             <a class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold" href="index.html"><i class="fas fa-arrow-left me-1"></i> กลับหน้าเมนู</a>
         </div>
@@ -31,7 +31,7 @@
         <div class="card p-4 bg-white">
             <div class="row g-3 align-items-end mb-4">
                 <div class="col-md-7">
-                    <label class="form-label fw-bold text-primary"><i class="fas fa-filter me-1"></i> เลือกรอบหลักสูตร (ระบบคัดรายชื่อเฉพาะผู้ที่เช็คอินแล้วจาก Supabase)</label>
+                    <label class="form-label fw-bold text-primary"><i class="fas fa-filter me-1"></i> เลือกรอบหลักสูตร (ระบบจะคัดเฉพาะผู้ที่รายงานตัวแล้ว)</label>
                     <select class="form-select bg-light form-control-lg fw-bold" id="certSessionSelect" onchange="loadParticipantsForCert()">
                         <option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>
                     </select>
@@ -45,7 +45,7 @@
                 <div class="d-flex align-items-center gap-3">
                     <div class="p-2.5 bg-primary text-white rounded-3 text-center" style="width: 40px; height: 40px;"><i class="fas fa-tasks"></i></div>
                     <div>
-                        <div class="text-muted small fw-bold">การทำงานแบบกลุ่มย่อย (ระบบล็อกความปลอดภัยก้อนละ 40 คน)</div>
+                        <div class="text-muted small fw-bold">การทำงานแบบกลุ่มย่อย</div>
                         <div class="fw-bold text-dark">เลือกอยู่ทั้งหมด <span id="selectedCountText" class="fs-4 text-primary font-black mx-1">0</span> รายการ</div>
                     </div>
                 </div>
@@ -67,7 +67,7 @@
                         </tr>
                     </thead>
                     <tbody id="certParticipantList">
-                        <tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> กรุณาเลือกรอบการอบรมด้านบนเพื่อดึงรายชื่อจากคลังฐานข้อมูล Supabase</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> กรุณาเลือกรอบการอบรมด้านบนเพื่อโหลดข้อมูลรายชื่อคิวงาน</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -79,7 +79,7 @@
             <div class="modal-content rounded-4 border-0 shadow-lg">
                 <div class="modal-header border-bottom-0 pb-0">
                     <div>
-                        <h5 class="modal-title fw-bold text-dark fs-4">ตัวอย่างใบประกาศแคมปัสด่วน (Canvas)</h5>
+                        <h5 class="modal-title fw-bold text-dark fs-4">ตัวอย่างใบประกาศแคมปัสด่วน</h5>
                         <p class="text-muted small mb-0">พิมพ์ชื่อ: <span class="fw-bold text-primary" id="previewNameText"></span></p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -103,21 +103,15 @@
 <script src="config.js"></script>
 
 <script>
-    // ตั้งค่ารูปโครงสร้างแนวนอนจากคลัง Supabase Storage และกำหนดพิกัดสำหรับพิมพ์ชื่อ-วันที่
-    const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
+    const TEMPLATE_IMAGE_URL = "https://i.postimg.cc/GpCSGRPb/Untitled-design-(3).png"; 
     const CANVAS_CONFIG = {
-        nameFont: "bold 42px 'Sarabun', 'Franklin Gothic Medium', sans-serif", 
+        nameFont: "bold 45px 'Sarabun', 'Franklin Gothic Medium', sans-serif", 
         nameColor: "#1c140e",            
-        nameYOffset: 345,      
-        dateFont: "24px 'Sarabun', sans-serif", 
+        nameYOffset: 480, 
+        dateFont: "26px 'Sarabun', sans-serif", 
         dateColor: "#1c140e", 
-        dateYOffset: 465,      
+        dateYOffset: 620, 
         align: "center"
-    };
-
-    // ประกาศรหัสโฟลเดอร์สำหรับส่งพ่วงควบคุมปลายทางจัดเก็บไฟล์ PDF ของคอร์ส STB บน Google Drive
-    const FOLDER_CONFIG = {
-        "STB": "1fHNt7UAIlq-9zP9LvTYhJiOd4TQs6PLb"
     };
 
     let localParticipantsData = [];
@@ -139,7 +133,6 @@
         });
     }
 
-    // 1. การดึงรายชื่อมาแสดงผลบนตาราง: ดึงจากฐานข้อมูล Supabase ตามปกติ
     async function loadParticipantsForCert() {
         const courseKey = document.getElementById('certSessionSelect').value; 
         document.getElementById('checkAllMaster').checked = false;
@@ -147,7 +140,7 @@
         
         if(!courseKey) return;
         const tbody = document.getElementById('certParticipantList'); 
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm me-2"></div>กำลังดึงข้อมูลผู้ร่วมกิจกรรมจากฐานข้อมูล Supabase...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm me-2"></div>กำลังเชื่อมต่อเพื่ออ่านข้อมูลผู้ร่วมอบรม...</td></tr>';
         
         const { data: list, error } = await supabaseClient
             .from('registrations')
@@ -157,7 +150,7 @@
             .order('created_at', { ascending: true });
             
         if(error) { 
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-5 fw-bold">เกิดข้อผิดพลาดในการเชื่อมต่อข้อมูลคลังคิวงาน</td></tr>'; 
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-5 fw-bold">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>'; 
             return; 
         }
         
@@ -165,7 +158,7 @@
         tbody.innerHTML = '';
         
         if(localParticipantsData.length === 0) { 
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> ยังไม่มีรายชื่อผู้ผ่านการเช็คอินรายงานตัวในรอบคอร์สหลักสูตรนี้</td></tr>'; 
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> รอบนี้ยังไม่มีรายชื่อผู้เข้าอบรมที่รายงานตัวเช็คอินผ่านระบบ</td></tr>'; 
             return; 
         }
 
@@ -180,7 +173,7 @@
                 statusBadge = `<span class="badge bg-success px-3 py-1.5" id="badge_${row.id}"><i class="fas fa-check-circle me-1"></i>ออกสำเร็จ</span>`;
             }
 
-            let viewBtn = row.certificate_url ? `<a href="${row.certificate_url}" target="_blank" class="btn btn-sm btn-outline-primary px-2" id="btn_view_${row.id}" title="เปิดดูไฟล์จริงบน Drive"><i class="fas fa-eye"></i></a>` : '';
+            let viewBtn = row.certificate_url ? `<a href="${row.certificate_url}" target="_blank" class="btn btn-sm btn-outline-primary px-2" id="btn_view_${row.id}" title="เปิดไฟล์จริงบน Drive"><i class="fas fa-eye"></i></a>` : '';
 
             tbody.innerHTML += `
                 <tr class="hover-shadow-sm">
@@ -196,7 +189,7 @@
                     <td class="text-center">${statusBadge}</td>
                     <td class="text-center">
                         <div class="btn-group gap-1">
-                            <button class="btn btn-sm btn-outline-info px-2" onclick="openClientPreview('${index}')" title="พรีวิวใบประกาศแคมปัสเร่งด่วน"><i class="fas fa-desktop"></i></button>
+                            <button class="btn btn-sm btn-outline-info px-2" onclick="openClientPreview('${index}')" title="พรีวิวตรวจสอบชื่อแบบด่วน"><i class="fas fa-desktop"></i></button>
                             ${viewBtn}
                             <button class="btn btn-sm btn-success fw-bold px-2" onclick="triggerGenSingle('${row.id}', '${row.course_key}')" id="btn_gen_${row.id}"><i class="fas fa-cog"></i> GEN</button>
                         </div>
@@ -205,7 +198,6 @@
         });
     }
 
-    // 2. การพรีวิวบนหน้าจอ: แกะข้อมูลรายชื่อจากก้อน Supabase ในตารางมาแสตมป์ทับภาพโครงสร้าง
     function openClientPreview(index) {
         const row = localParticipantsData[index];
         if(!row) return;
@@ -215,7 +207,7 @@
         
         const selectElement = document.getElementById('certSessionSelect');
         const selectedOption = selectElement.options[selectElement.selectedIndex];
-        let sessionDateStr = selectedOption ? selectedOption.getAttribute('data-sysdate') : "ไม่ระบุวันที่";
+        let sessionDateStr = selectedOption ? selectedOption.getAttribute('data-sysdate') : "";
 
         document.getElementById('previewNameText').innerText = fullNameStr;
         document.getElementById('loadingText').style.display = 'flex';
@@ -224,53 +216,33 @@
         canvas.classList.add('d-none');
         bsPreviewModal.show();
 
-        // บังคับสคริปต์รอโหลดฟอนต์ Sarabun ป้องกันระบบพรีวิวค้างแถบแดง
-        document.fonts.load("bold 42px 'Sarabun'").then(() => {
-            const img = new Image();
-            img.crossOrigin = "Anonymous"; // เรียกขอสิทธิ์แลกสิทธิ์ CORS
-            
-            img.onload = function() {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                
-                ctx.clearRect(0, 0, canvas.width, canvas.height); // ล้างคราบนามสกุลเดิมออกทิ้ง
-                ctx.drawImage(img, 0, 0);
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = function() {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
 
-                let centerX = img.width / 2;
+            let centerX = img.width / 2;
 
-                ctx.font = CANVAS_CONFIG.nameFont;
-                ctx.fillStyle = CANVAS_CONFIG.nameColor;
-                ctx.textAlign = CANVAS_CONFIG.align;
-                ctx.fillText(fullNameStr, centerX, CANVAS_CONFIG.nameYOffset);
+            ctx.font = CANVAS_CONFIG.nameFont;
+            ctx.fillStyle = CANVAS_CONFIG.nameColor;
+            ctx.textAlign = CANVAS_CONFIG.align;
+            ctx.fillText(fullNameStr, centerX, CANVAS_CONFIG.nameYOffset);
 
-                ctx.font = CANVAS_CONFIG.dateFont;
-                ctx.fillStyle = CANVAS_CONFIG.dateColor;
-                ctx.fillText(sessionDateStr, centerX, CANVAS_CONFIG.dateYOffset);
+            ctx.font = CANVAS_CONFIG.dateFont;
+            ctx.fillStyle = CANVAS_CONFIG.dateColor;
+            ctx.fillText(sessionDateStr, centerX, CANVAS_CONFIG.dateYOffset);
 
-                document.getElementById('loadingText').style.display = 'none';
-                canvas.classList.remove('d-none');
-            };
-            
-            img.onerror = function() {
-                // ระนาบสำรองกรณีสิทธิ์ตู้ Bucket Supabase เกิดการบล็อกความปลอดภัย CORS
-                document.getElementById('loadingText').style.display = 'none';
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'ตรวจสอบระบบรักษาความปลอดภัยสิทธิ์ CORS',
-                    html: `ภาพโครงสร้างพื้นหลังติดเงื่อนไขความปลอดภัย CORS หลังบ้านสเปซโปรเจกต์<br><br><b>คำแนะนำความเสถียร:</b> ให้เข้าไปเปิดสิทธิ์ <i>Allowed Origins เป็น <code>*</code></i> ในเมนู Bucket Settings ของตู้นี้บนหน้าเว็บ Supabase ครับ`
-                });
-                
-                canvas.width = 800; canvas.height = 565;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = "#f1f5f9"; ctx.fillRect(0,0,800,565);
-                ctx.font = "20px Sarabun"; ctx.fillStyle = "#475569"; ctx.textAlign = "center";
-                ctx.fillText("ภาพโครงสร้างพรีวิวติดข้อจำกัดสิทธิ์ CORS สภาพแวดล้อมหลังบ้าน", 400, 280);
-                canvas.classList.remove('d-none');
-            };
-            
-            img.src = TEMPLATE_IMAGE_URL + "?t=" + new Date().getTime(); // เพิ่มรหัสสกัดแคชเดิมทิ้ง
-        });
+            document.getElementById('loadingText').style.display = 'none';
+            canvas.classList.remove('d-none');
+        };
+        img.onerror = function() {
+            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเข้าถึงไฟล์ภาพโครงสร้างต้นแบบใบประกาศได้', 'error');
+            bsPreviewModal.hide();
+        };
+        img.src = TEMPLATE_IMAGE_URL;
     }
 
     function toggleSelectAll(master) {
@@ -300,24 +272,17 @@
         }
     }
 
-    // 3. การสร้างใบประกาศทีละใบ: ส่งข้อมูลชี้เป้าโฟลเดอร์รันบันทึกลิงก์ข้ามระบบ
     async function triggerGenSingle(regId, courseKey) {
         const btn = document.getElementById(`btn_gen_${regId}`);
         const badge = document.getElementById(`badge_${regId}`);
         if(btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`; }
         if(badge) { badge.className = "badge bg-info text-dark animate-pulse"; badge.innerHTML = `กำลังเจน...`; }
 
-        let targetFolderId = FOLDER_CONFIG[courseKey] || ""; // ดึง ID โฟลเดอร์ของ STB จาก FOLDER_CONFIG
-
         try {
             const response = await fetch(CERT_STB_API, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ 
-                    regId: regId, 
-                    courseKey: courseKey,
-                    folderId: targetFolderId 
-                })
+                body: JSON.stringify({ regId: regId, courseKey: courseKey })
             });
             const result = await response.json();
             if (result.success) {
@@ -331,7 +296,7 @@
         }
     }
 
-    // 4. ระบบการสร้างแบบกลุ่มไฮบริด: วนลูป Async คุมความปลอดภัยตัดรอบก้อนละ 40 ใบ
+    // ระบบทำงานแบบกลุ่มแบบแบ่งก้อน (Chunking) รอบละ 40 คน ป้องกันระบบล่ม 100%
     async function triggerGenBatch() {
         const selectedCbs = Array.from(document.querySelectorAll('.row-select:checked'));
         if(selectedCbs.length === 0) return;
@@ -341,11 +306,11 @@
         
         if (selectedCbs.length > CHUNK_SIZE) {
             const confirmRes = await Swal.fire({
-                title: 'จัดสรรปริมาณคิวงานกลุ่มย่อย',
-                html: `คุณเลือกรายชื่อทั้งหมด <b>${selectedCbs.length} รายการ</b> ระบบสถาปัตยกรรมจะแบ่งกลุ่มประมวลผลก้อนแรกจำนวน <b>${CHUNK_SIZE} รายการ</b> เพื่อรักษาความเสถียรสูงสุดให้กับสคริปต์ Google ครับ`,
+                title: 'รายการมีจำนวนมาก',
+                html: `คุณเลือกรายชื่อทั้งหมด <b>${selectedCbs.length} รายการ</b> ซึ่งเกินขีดจำกัดความปลอดภัยต่อรอบ<br><br>ระบบจะแบ่งก้อนทำรอบแรกให้ก่อนจำนวน <b>${CHUNK_SIZE} รายการ</b> เพื่อป้องกันระบบล่มครับ`,
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonText: 'รันก้อนแรก (40 คน)',
+                confirmButtonText: 'เริ่มรันก้อนแรก (40 คน)',
                 cancelButtonText: 'ยกเลิก',
                 confirmButtonColor: '#1976d2'
             });
@@ -353,14 +318,13 @@
         }
 
         const currentBatchCbs = selectedCbs.slice(0, CHUNK_SIZE);
-        const courseKey = document.getElementById('certSessionSelect').value;
 
         mainBtn.disabled = true;
-        mainBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> กำลังประมวลผลคิวงานกลุ่มไฮบริด...`;
+        mainBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> กำลังรันคิวกลุ่ม (รายการที่ 1 - ${currentBatchCbs.length})...`;
 
         Swal.fire({
-            title: `กำลังรันใบประกาศส่งเข้าโฟลเดอร์ Google`,
-            html: `ระบบกำลังสั่งออกใบประกาศจำนวน <b>${currentBatchCbs.length} รายการ</b> ในรอบนี้<br><small class="text-danger">⚠️ กรุณารอห้ามปิดหรือย้ายหน้าต่างนี้เด็ดขาด</small>`,
+            title: `กำลังประมวลผลคิวงานกลุ่ม`,
+            html: `ระบบกำลังรันใบประกาศจำนวน <b>${currentBatchCbs.length} รายการ</b> ในรอบนี้<br><small class="text-danger">⚠️ ห้ามปิดหรือรีเฟรชหน้าต่างนี้เด็ดขาด</small>`,
             icon: 'info',
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -370,15 +334,18 @@
         let successCount = 0;
         for (let i = 0; i < currentBatchCbs.length; i++) {
             const cb = currentBatchCbs[i];
-            const regId = cb.value;
+            const idx = parseInt(cb.getAttribute('data-index'));
+            const pData = localParticipantsData[idx];
 
-            const res = await triggerGenSingle(regId, courseKey);
-            if (res) {
-                successCount++;
-                cb.checked = false; // ปลดเคลียร์รายการที่สำเร็จออกจากตาราง
-            }
-            if(i < currentBatchCbs.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 1500)); // ถ่วงน้ำหนักความเร็วระเบิดรอบละ 1.5 วินาที
+            if (pData) {
+                const res = await triggerGenSingle(pData.id, pData.course_key);
+                if (res) {
+                    successCount++;
+                    cb.checked = false; 
+                }
+                if(i < currentBatchCbs.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                }
             }
         }
 
@@ -389,15 +356,15 @@
         const remainingTotal = selectedCbs.length - currentBatchCbs.length;
         if (remainingTotal > 0) {
             Swal.fire({
-                title: 'ประมวลผลก้อนแรกเสร็จสิ้น',
-                html: `สร้างไฟล์ PDF สำเร็จแล้ว <b>${successCount} ใบ</b><br>ยังมีคิวค้างอยู่ในตารางอีก <b>${remainingTotal} รายการ</b> สามารถกดสั่งกลุ่มรันเพื่อปฏิบัติการก้อนถัดไปได้ทันทีครับ`,
+                title: 'จบรอบแรกสำเร็จ',
+                html: `ทำเสร็จแล้ว <b>${successCount} ใบ</b><br><br>ยังมีรายชื่อค้างอยู่อีก <b>${remainingTotal} คน</b> ในแถว สามารถกดปุ่มรันแบบกลุ่มเพื่อเริ่มก้อนถัดไปได้ทันทีครับ`,
                 icon: 'success'
             });
         } else {
-            Swal.fire('ประมวลผลเสร็จสมบูรณ์', `ทำการรันออกใบประกาศนียบัตรสำเร็จครบถ้วนทุกคิวงานแล้วครับช่าง!`, 'success');
+            Swal.fire('เสร็จสิ้นทั้งหมด', `ทำการออกใบประกาศครบถ้วนทั้งหมดเรียบร้อยแล้วครับ!`, 'success');
         }
         
-        loadParticipantsForCert(); // รีเฟรชตารางดึงสถานะ badge ล่าสุด
+        loadParticipantsForCert();
     }
 </script>
 </body>

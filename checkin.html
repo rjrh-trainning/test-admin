@@ -144,8 +144,9 @@
 
             let prefixStr = user.prefix ? user.prefix + " " : "";
 
+            // เปลี่ยนข้อความบนปุ่มให้ตรงกับ action ปัจจุบัน
             let actionButton = selectedMode === 'IN' 
-                ? `<button class="btn btn-success btn-lg w-100 fw-bold mt-3 shadow-sm" onclick="commitCheckIn('IN')"><i class="fas fa-sign-in-alt me-2"></i> ยืนยันเช็คอินและออกวุฒิบัตร</button>`
+                ? `<button class="btn btn-success btn-lg w-100 fw-bold mt-3 shadow-sm" onclick="commitCheckIn('IN')"><i class="fas fa-sign-in-alt me-2"></i> ยืนยันบันทึกเช็คอิน</button>`
                 : `<button class="btn btn-warning btn-lg w-100 fw-bold mt-3 shadow-sm" onclick="commitCheckIn('OUT')"><i class="fas fa-sign-out-alt me-2"></i> ยืนยันยกเลิกการเช็คอิน</button>`;
 
             resultDiv.style.display = 'block';
@@ -182,26 +183,17 @@
         resultDiv.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary mb-2"></div><br>กำลังบันทึกสถานะลงฐานข้อมูล...</div>`;
 
         try {
+            // บันทึกเฉพาะข้อมูลลงฐานข้อมูล Supabase
             let updateField = selectedMode === "IN" ? { is_checked_in: true, checked_in_at: new Date() } : { is_checked_in: false, checked_in_at: null };
             const { error: updateError } = await supabaseClient.from('registrations').update(updateField).eq('id', user.id);
             if (updateError) throw updateError;
 
-            if(selectedMode === "IN") {
-                const fullSessionString = `${user.session_info.name} (${user.session_info.date})`;
-                await fetch(GOOGLE_SHEET_API, {
-                    method: 'POST', mode: 'no-cors',
-                    body: new URLSearchParams({ 
-                        action: "checkInSuccess", id: user.id, prefix: user.prefix || "", 
-                        nameEn: user.full_name_en, phone: user.phone, email: user.email, 
-                        sessionName: fullSessionString, courseKey: user.course_key 
-                    })
-                });
-            }
+            // --- เอาโค้ดส่วนที่ fetch(GOOGLE_SHEET_API) ออกไปแล้วตามคำขอครับ ---
 
             resultDiv.innerHTML = `
                 <div class="alert alert-success text-center fw-bold fs-5 py-3 mb-0">
                     <i class="fas fa-check-circle me-2"></i>
-                    ${selectedMode === "IN" ? 'เช็คอินสำเร็จ! ระบบรันคิวคีย์เข้าระบบเรียบร้อย' : 'ยกเลิกสถานะเช็คอินเรียบร้อยแล้ว!'}<br>
+                    ${selectedMode === "IN" ? 'บันทึกเช็คอินเรียบร้อย!' : 'ยกเลิกสถานะเช็คอินเรียบร้อยแล้ว!'}<br>
                     <span class="text-primary">${user.full_name_th}</span>
                 </div>`;
             pendingUser = null;

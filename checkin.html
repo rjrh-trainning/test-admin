@@ -14,6 +14,7 @@
         .card { border: none; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
         #reader { width: 100%; border-radius: 15px; overflow: hidden; background-color: #000; }
         .loader { display: none; text-align: center; padding: 20px; }
+        .course-badge { font-size: 0.85rem; padding: 6px 12px; border-radius: 8px; }
     </style>
 </head>
 <body>
@@ -21,7 +22,7 @@
     <nav class="navbar navbar-dark shadow-sm">
         <div class="container d-flex justify-content-between align-items-center">
             <span class="navbar-brand fw-bold d-flex align-items-center">
-                <i class="fas fa-qrcode me-2"></i> RJRH - หน้างานเช็คอิน
+                <i class="fas fa-qrcode me-2"></i> RJRH - หน้างานเช็คอิน (Multi-Course)
             </span>
             <a class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold" href="index.html"><i class="fas fa-arrow-left me-1"></i> กลับหน้าเมนู</a>
         </div>
@@ -64,18 +65,13 @@
 <script>
     let html5QrCode; 
     let isProcessing = false;
-    let pendingUser = null;
+    let fetchedRecords = []; // 🎯 เก็บรายการผลลัพธ์ทั้งหมดที่ค้นเจอ
 
-    // 🎯 ล็อกพิกัดปลายทางไปที่ API เช็คอินตัวใหม่แกะกล่องโดยตรง ไม่ปนกับเว็บลงทะเบียน
     const CHECKIN_API_URL = "https://script.google.com/macros/s/AKfycbwXHtjumpXQ8MxoUuQ6bq-oNWeSgD0a9gV0A8IOncDSIggGEKXSaab1JxmWqfL4qgmq/exec";
 
     window.addEventListener('DOMContentLoaded', async () => {
         if (typeof checkAuthGuard === 'function') {
-            try {
-                await checkAuthGuard();
-            } catch (e) {
-                console.error("Auth Guard Error:", e);
-            }
+            try { await checkAuthGuard(); } catch (e) { console.error("Auth Guard Error:", e); }
         }
     });
 
@@ -132,7 +128,7 @@
     
     function clearResult() {
         document.getElementById('actionResult').style.display = 'none';
-        pendingUser = null;
+        fetchedRecords = [];
     }
 
     async function searchParticipant(searchQuery) {
@@ -156,6 +152,7 @@
         }
 
         try {
+            // ดึงรายชื่อทั้งหมดที่ตรงกับรหัสอ้างอิง หรือ เบอร์โทรนี้ (ไม่ตัดทิ้งเหลืออันสุดท้ายแล้ว)
             let { data: results, error: fetchError } = await supabaseClient
                 .from('registrations')
                 .select('*')
@@ -166,44 +163,69 @@
                 throw new Error(`ไม่พบข้อมูลผู้ลงทะเบียนจากรหัส หรือ เบอร์โทร: "${searchQuery}"`);
             }
 
-            const user = results[results.length - 1];
-            const { data: sessionData } = await supabaseClient.from('sessions').select('name, date').eq('course_key', user.course_key).single();
-            user.session_info = sessionData || { name: user.course_key, date: "ไม่ระบุรอบ" };
-            
-            pendingUser = user; 
+            // จัดเก็บลงตัวแปรร่วมของหน้าจอเพื่อให้ฟังก์ชันอื่นเรียกใช้พิกัดโครงสร้างได้ง่าย
+            fetchedRecords = results; 
 
-            let pdpaBadge = user.photo_consent 
-                ? `<span class="badge bg-success"><i class="fas fa-camera me-1"></i> ยินยอมถ่ายภาพ (PDPA)</span>` 
-                : `<span class="badge bg-danger"><i class="fas fa-camera-slash me-1"></i> ❌ ห้ามถ่ายภาพ</span>`;
-            
-            let currentStatus = user.is_checked_in 
-                ? `<span class="text-success fw-bold"><i class="fas fa-check-circle"></i> เช็คอินแล้ว</span>`
-                : `<span class="text-secondary fw-bold"><i class="fas fa-clock"></i> ยังไม่เช็คอิน</span>`;
+            // ดึงข้อมูลวิชาประกอบแบบระบุตัวตนร่วมกัน
+            for (let user of fetchedRecords) {
+                const { data: sessionData } = await supabaseClient.from('sessions').select('name, date').eq('course_key', user.course_key).single();
+                user.session_info = sessionData || { name: user.course_key, date: "ไม่ระบุรอบอบรม" };
+            }
 
-            let prefixStr = user.prefix ? user.prefix + " " : "";
+            // ข้อมูลพื้นฐานส่วนบุคคล (ดึงจากแถวแรกมาแสดงเป็นหัวข้อใหญ่)
+            const baseUser = fetchedRecords[0];
+            let prefixStr = baseUser.prefix ? baseUser.prefix + " " : "";
 
-            let actionButton = selectedMode === 'IN' 
-                ? `<button class="btn btn-success btn-lg w-100 fw-bold mt-3 shadow-sm" onclick="commitCheckIn('IN')"><i class="fas fa-sign-in-alt me-2"></i> ยืนยันบันทึกเช็คอิน</button>`
-                : `<button class="btn btn-warning btn-lg w-100 fw-bold mt-3 shadow-sm" onclick="commitCheckIn('OUT')"><i class="fas fa-sign-out-alt me-2"></i> ยืนยันยกเลิกการเช็คอิน</button>`;
-
-            resultDiv.style.display = 'block';
-            resultDiv.innerHTML = `
+            let htmlContent = `
                 <div class="card border-primary shadow-sm mb-0">
-                    <div class="card-header bg-primary text-white fw-bold">ตรวจสอบข้อมูลก่อนยืนยัน</div>
-                    <div class="card-body text-start">
-                        <p class="mb-1"><small class="text-muted">ชื่อ-สกุล (ไทย):</small><br><b class="fs-5">${user.full_name_th}</b></p>
-                        <p class="mb-1"><small class="text-muted">ชื่อ-สกุล (ENG):</small><br><b class="fs-6 text-primary">${prefixStr}${user.full_name_en}</b></p>
-                        <p class="mb-1"><small class="text-muted">หลักสูตร:</small><br><b>${user.session_info.name}</b></p>
-                        <div class="d-flex justify-content-between mt-3 pb-2 border-bottom">
-                            <div><small class="text-muted d-block">PDPA Consent</small>${pdpaBadge}</div>
-                            <div class="text-end"><small class="text-muted d-block">สถานะปัจจุบัน</small>${currentStatus}</div>
-                        </div>
-                        ${actionButton}
+                    <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-user me-2"></i>ข้อมูลผู้ลงทะเบียน</span>
+                        <span class="badge bg-light text-primary fw-bold">พบทั้งหมด ${fetchedRecords.length} หลักสูตร</span>
                     </div>
-                </div>`;
-        } catch (e) {
+                    <div class="card-body text-start">
+                        <p class="mb-1"><small class="text-muted">ชื่อ-สกุล (ไทย):</small><br><b class="fs-5">${baseUser.full_name_th}</b></p>
+                        <p class="mb-3"><small class="text-muted">ชื่อ-สกุล (ENG):</small><br><b class="fs-6 text-muted">${prefixStr}${baseUser.full_name_en}</b></p>
+                        
+                        <h6 class="fw-bold text-secondary border-top pt-3 mb-3"><i class="fas fa-graduation-cap me-2"></i>รายการหลักสูตรที่ลงทะเบียน</h6>
+                        <div id="courseListSelection">`;
+
+            // ลูปสร้างกล่องวิชาให้เลือกจิ้มเช็คอินแยกกันเป็นเอกเทศ
+            fetchedRecords.forEach((user, index) => {
+                let pdpaBadge = user.photo_consent 
+                    ? `<span class="badge bg-success course-badge"><i class="fas fa-camera me-1"></i> PDPA: ยินยอม</span>` 
+                    : `<span class="badge bg-danger course-badge"><i class="fas fa-camera-slash me-1"></i> PDPA: ห้ามถ่าย</span>`;
+                
+                let currentStatus = user.is_checked_in 
+                    ? `<span class="badge bg-light-success border border-success text-success fw-bold py-2 px-3"><i class="fas fa-check-circle me-1"></i> เช็คอินแล้ว</span>`
+                    : `<span class="badge bg-light-secondary border text-secondary fw-bold py-2 px-3"><i class="fas fa-clock me-1"></i> ยังไม่เช็คอิน</span>`;
+
+                let btnColor = selectedMode === 'IN' ? 'btn-success' : 'btn-warning';
+                let btnText = selectedMode === 'IN' ? 'บันทึกเช็คอินคอร์สนี้' : 'ยกเลิกเช็คอินคอร์สนี้';
+                let btnIcon = selectedMode === 'IN' ? 'fa-sign-in-alt' : 'fa-sign-out-alt';
+
+                htmlContent += `
+                    <div class="card p-3 border-light bg-light mb-3" id="course-card-${index}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div style="max-width: 70%;">
+                                <span class="badge bg-dark mb-1">${user.course_key}</span>
+                                <div class="fw-bold text-dark fs-6">${user.session_info.name}</div>
+                            </div>
+                            <div class="text-end">${currentStatus}</div>
+                        </div>
+                        <div class="d-flex gap-2 align-items-center mt-2">
+                            ${pdpaBadge}
+                            <small class="text-muted ms-auto">ID: ${user.id}</small>
+                        </div>
+                        <button class="btn ${btnColor} btn-sm w-100 fw-bold mt-3 py-2 shadow-sm" id="btn-action-${index}" onclick="commitCheckInSpecific(${index}, '${selectedMode}')">
+                            <i class="fas ${btnIcon} me-1"></i> ${btnText}
+                        </button>
+                    </div>`;
+            });
+
+            htmlContent += `</div></div></div>`;
             resultDiv.style.display = 'block';
-            resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
+            resultDiv.innerHTML = htmlContent;
+
         } catch (e) {
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
@@ -214,17 +236,22 @@
         }
     }
 
-    async function commitCheckIn(selectedMode) {
-        if(isProcessing || !pendingUser) return;
+    // 🎯 ฟังก์ชันเช็คอินเจาะจงเฉพาะรายวิชาที่แอดมินคลิกเลือก
+    async function commitCheckInSpecific(index, selectedMode) {
+        if(isProcessing || !fetchedRecords[index]) return;
         isProcessing = true;
-        const resultDiv = document.getElementById('actionResult'); 
-        const user = pendingUser;
         
-        resultDiv.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary mb-2"></div><br>กำลังบันทึกสถานะลงฐานข้อมูล...</div>`;
+        const actionBtn = document.getElementById(`btn-action-${index}`);
+        const courseCard = document.getElementById(`course-card-${index}`);
+        const user = fetchedRecords[index];
+        
+        const originalBtnContent = actionBtn.innerHTML;
+        actionBtn.disabled = true;
+        actionBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>กำลังประมวลผล...`;
 
         try {
             if (selectedMode === "IN") {
-                // 1. บันทึกประวัติเช็คอินลงตารางหลัก registrations บน Supabase
+                // 1. อัปเดตตาราง registrations เฉพาะไอดีหลักสูตรนั้นใน Supabase
                 let nowTime = new Date().toISOString();
                 const { error: updateError } = await supabaseClient
                     .from('registrations')
@@ -232,9 +259,8 @@
                     .eq('id', user.id);
                 if (updateError) throw updateError;
 
-                // 2. ส่งข้อมูลโครงสร้างเข้าสู่ตาราง certificates_queue บน Supabase
+                // 2. ใส่คิวใบประกาศใบตาราง certificates_queue
                 let finalFullNameEn = user.full_name_en ? String(user.full_name_en).trim() : "";
-
                 const { error: queueError } = await supabaseClient
                     .from('certificates_queue')
                     .insert([{
@@ -245,7 +271,7 @@
                     }]);
                 if (queueError) throw queueError;
 
-                // 3. 🎯 ยิงสัญญาณข้อมูลตรงไปหา API เช็คอินตัวใหม่แกะกล่องโดยตรง พ่วงค่า course_key ไปด้วยทันที
+                // 3. ยิงข้ามสัญญาณส่งให้ API เช็คอิน Google Sheets บันทึกวันที่ลงคอลัมน์ I
                 try {
                     await fetch(CHECKIN_API_URL, {
                         method: 'POST',
@@ -254,16 +280,22 @@
                         body: JSON.stringify({
                             action: "checkInSuccess",
                             id: String(user.id).trim(),
-                            course_key: String(user.course_key).trim() // ส่งชื่อคอร์สแถมไปด้วยเพื่อให้เปิดชีตได้ไวขึ้น
+                            course_key: String(user.course_key).trim()
                         })
                     });
-                    console.log("GAS Check-in Sync Triggered Successfully viaตัวใหม่.");
+                    console.log(`GAS Sync Success for Course Key: ${user.course_key}`);
                 } catch(gasErr) {
-                    console.error("GAS Sync Network Error (Non-blocking):", gasErr);
+                    console.error("GAS Sync Error:", gasErr);
                 }
 
+                // แจ้งเตือนสเปกความสำเร็จผ่าน UI รายคอร์ส
+                courseCard.innerHTML = `
+                    <div class="alert alert-success border-success text-center mb-0 py-3 fw-bold">
+                        <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จแล้ว!
+                    </div>`;
+
             } else {
-                // 🔄 โหมดเช็คเอาท์ (ยกเลิก): อัปเดตข้อมูลตารางหลักกลับคืนสถานะปกติ
+                // 🔄 โหมดเช็คเอาท์ (ยกเลิก): เคลียร์ค่าในระบบ Supabase ตามปกติ (ไม่ยุ่งกับสเปรดชีตตามเงื่อนไขเดิม)
                 let updateField = { is_checked_in: false, checked_in_at: null };
                 const { error: updateError } = await supabaseClient
                     .from('registrations')
@@ -271,25 +303,24 @@
                     .eq('id', user.id);
                 if (updateError) throw updateError;
                 
-                // เคลียร์คิวใบประกาศเดิมออกจากตารางเมื่อมีการยกเลิกเช็คอิน
                 await supabaseClient
                     .from('certificates_queue')
                     .delete()
                     .eq('registration_id', String(user.id).trim());
+
+                courseCard.innerHTML = `
+                    <div class="alert alert-warning border-warning text-center mb-0 py-3 fw-bold">
+                        <i class="fas fa-minus-circle me-1"></i> ยกเลิกสิทธิ์หลักสูตร [${user.course_key}] เรียบร้อย
+                    </div>`;
             }
 
-            // แสดงผลการบันทึกข้อความเรียบร้อยตามเป้าหมาย (Complete)
-            resultDiv.innerHTML = `
-                <div class="alert alert-success text-center fw-bold fs-5 py-3 mb-0">
-                    <i class="fas fa-check-circle me-2"></i>
-                    ${selectedMode === "IN" ? 'บันทึกเช็คอินเรียบร้อย!' : 'ยกเลิกสถานะเช็คอินเรียบร้อยแล้ว!'}<br>
-                    <span class="text-primary">${user.full_name_th}</span>
-                </div>`;
-                
-            pendingUser = null;
-            document.getElementById('searchInput').value = '';
+            // ปล่อยให้ผู้เรียนรายวิชาอื่นในหน้าจอสามารถเช็คอินต่อได้โดยไม่ต้องกดค้นหาใหม่
+            user.is_checked_in = (selectedMode === "IN");
+
         } catch (e) {
-            resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
+            Swal.fire('เกิดข้อผิดพลาด', e.message, 'error');
+            actionBtn.disabled = false;
+            actionBtn.innerHTML = originalBtnContent;
         } finally { 
             isProcessing = false; 
         }

@@ -3,8 +3,11 @@
 const SUPABASE_URL = "https://ghgmupyrkeakyolliogv.supabase.co"; 
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoZ211cHlya2Vha3lvbGxpb2d2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNDE0ODksImV4cCI6MjA5NDgxNzQ4OX0.RSciT8WVeD9bwmo3DlMhw4KsdM1ftgKXka9QI9pvYzs"; 
 
-// Google Apps Script Web App APIs
+// 🎯 Google Apps Script Web App APIs 
+// ⚠️ สำคัญมาก: ตรงนี้ต้องมั่นใจว่าเป็น URL ที่ได้จากการ Deploy "เวอร์ชันใหม่" (New Version) หลังจากที่เราแยกไฟล์ GAS แล้วนะครับ
 const GOOGLE_SHEET_API = "https://script.google.com/macros/s/AKfycbwh1jdhZoHbyAl4iFWFnQyDNLiSwkmhG9kVMBUY97Pt9qyKN-_ju73SPdqpekx9IHp0/exec";
+const MAIN_REG_API_URL = GOOGLE_SHEET_API; // 🛠️ เสริมตัวแปรนี้เข้ามาเพื่อรองรับโค้ดเก่าใน checkin.html ไม่ให้หลุดโฟลว์
+
 const CERT_STB_API = "https://script.google.com/macros/s/AKfycby0ebBHlmguiJX9RYqX7cBhKV7Cni42Xn6IsJfbjvS2EIZFrBJpu31fI2gQ2Xm5cOEh/exec";
 
 // ประกาศตัวแปรเซสชันเพื่อให้เรียกใช้ร่วมกันได้ง่าย
@@ -16,17 +19,26 @@ if (window.supabase) {
 // ฟังก์ชันกลางสำหรับตรวจสอบสิทธิ์ (Route Guard) ถ้าไม่ได้ล็อกอินให้เด้งไปหน้าแรก
 async function checkAuthGuard() {
     if (!supabaseClient) return;
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session && !window.location.pathname.endsWith('index.html')) {
-        window.location.href = "index.html";
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session && !window.location.pathname.endsWith('index.html')) {
+            window.location.href = "index.html";
+        }
+        return session;
+    } catch (e) {
+        console.error("Auth Guard Failure:", e);
     }
-    return session;
 }
 
 // ฟังก์ชันสากลสำหรับปุ่ม Log out
 async function handleGlobalLogout() {
     if (supabaseClient) {
-        await supabaseClient.auth.signOut();
-        window.location.href = "index.html";
+        try {
+            await supabaseClient.auth.signOut();
+            window.location.href = "index.html";
+        } catch (e) {
+            console.error("Logout Error:", e);
+            window.location.href = "index.html"; // บังคับเด้งออกหน้าแรกแม้จะ SignOut พัง
+        }
     }
 }

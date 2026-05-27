@@ -66,6 +66,9 @@
     let isProcessing = false;
     let pendingUser = null;
 
+    // 🎯 ล็อกพิกัดปลายทางไปที่ API เช็คอินตัวใหม่แกะกล่องโดยตรง ไม่ปนกับเว็บลงทะเบียน
+    const CHECKIN_API_URL = "https://script.google.com/macros/s/AKfycbwXHtjumpXQ8MxoUuQ6bq-oNWeSgD0a9gV0A8IOncDSIggGEKXSaab1JxmWqfL4qgmq/exec";
+
     window.addEventListener('DOMContentLoaded', async () => {
         if (typeof checkAuthGuard === 'function') {
             try {
@@ -102,7 +105,6 @@
     function stopScanner() {
         if (html5QrCode && html5QrCode.isScanning) {
             html5QrCode.stop().then(() => {
-                document.getElementById('cameraStartSection').style.display = 'bold'; // ปรับฟอนต์ปุ่มเมนูให้หนาตามปกติ
                 document.getElementById('cameraStartSection').style.display = 'block';
                 document.getElementById('scannerContainer').style.display = 'none';
             }).catch(err => {
@@ -202,6 +204,9 @@
         } catch (e) {
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
+        } catch (e) {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
         } finally { 
             document.getElementById('searchLoader').style.display = 'none';
             if(btnManual) btnManual.disabled = false;
@@ -240,20 +245,19 @@
                     }]);
                 if (queueError) throw queueError;
 
-                // 3. 🛠️ BUGFIXED: ยิงสัญญาณข้อมูลไปหาท่อนเซิร์ฟเวอร์ GAS แบบตัดปัญหากวนใจเรื่อง CORS
-                let targetApiUrl = (typeof MAIN_REG_API_URL !== 'undefined') ? MAIN_REG_API_URL : GOOGLE_SHEET_API;
-                
+                // 3. 🎯 ยิงสัญญาณข้อมูลตรงไปหา API เช็คอินตัวใหม่แกะกล่องโดยตรง พ่วงค่า course_key ไปด้วยทันที
                 try {
-                    await fetch(targetApiUrl, {
+                    await fetch(CHECKIN_API_URL, {
                         method: 'POST',
-                        mode: 'no-cors', // 💡 ปล่อยผ่านความปลอดภัยฝั่งเบราว์เซอร์ เพื่อให้ GAS บันทึกค่าได้โดยสคริปต์หน้าแอปไม่ระเบิดค้าง
+                        mode: 'no-cors', 
                         headers: { 'Content-Type': 'text/plain' },
                         body: JSON.stringify({
                             action: "checkInSuccess",
-                            id: String(user.id).trim() // ส่งโครงสร้าง ID ชั้นเดียวแบบสะอาด เพื่อความเสถียรของสคริปต์
+                            id: String(user.id).trim(),
+                            course_key: String(user.course_key).trim() // ส่งชื่อคอร์สแถมไปด้วยเพื่อให้เปิดชีตได้ไวขึ้น
                         })
                     });
-                    console.log("GAS Sync Triggered Successfully via no-cors mode.");
+                    console.log("GAS Check-in Sync Triggered Successfully viaตัวใหม่.");
                 } catch(gasErr) {
                     console.error("GAS Sync Network Error (Non-blocking):", gasErr);
                 }

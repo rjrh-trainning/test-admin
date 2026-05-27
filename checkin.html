@@ -144,7 +144,6 @@
         const resultDiv = document.getElementById('actionResult'); 
         resultDiv.style.display = 'none';
 
-        // ป้องกันกรณี supabaseClient ยังไม่พร้อมทำงาน
         if (typeof supabaseClient === 'undefined') {
             Swal.fire('ข้อผิดพลาด', 'ไม่พบการตั้งค่าฐานข้อมูล Supabase กรุณาตรวจสอบไฟล์ config.js', 'error');
             document.getElementById('searchLoader').style.display = 'none';
@@ -203,7 +202,6 @@
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
         } finally { 
-            // 🛠️ แก้ไขวิกฤติตัวสะกดจาก tragedy -> เป็น finally เรียบร้อยครับป๋า!
             document.getElementById('searchLoader').style.display = 'none';
             if(btnManual) btnManual.disabled = false;
             isProcessing = false; 
@@ -229,8 +227,7 @@
                 if (updateError) throw updateError;
 
                 // 2. ส่งข้อมูลโครงสร้างเข้าสู่ตาราง certificates_queue บน Supabase
-                let finalPrefix = user.prefix ? user.prefix + " " : "";
-                let finalFullNameEn = `${finalPrefix}${user.full_name_en}`.trim();
+                let finalFullNameEn = user.full_name_en ? String(user.full_name_en).trim() : "";
 
                 const { error: queueError } = await supabaseClient
                     .from('certificates_queue')
@@ -284,7 +281,9 @@
             document.getElementById('searchInput').value = '';
         } catch (e) {
             resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
-        } finally { isProcessing = false; }
+        } finally { 
+            isProcessing = false; 
+        }
     }
 </script>
 </body>

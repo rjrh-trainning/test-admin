@@ -103,14 +103,15 @@
 <script src="config.js"></script>
 
 <script>
-    const TEMPLATE_IMAGE_URL = "https://i.postimg.cc/GpCSGRPb/Untitled-design-(3).png"; 
+    // 🔥 [แก้ไขจุดพรีวิวเบี้ยว] เปลี่ยนมาใช้ลิงก์จากระบบปิดบน Supabase Storage พร้อมปรับค่าพิกัดสำหรับภาพแนวนอน
+    const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
     const CANVAS_CONFIG = {
-        nameFont: "bold 45px 'Sarabun', 'Franklin Gothic Medium', sans-serif", 
+        nameFont: "bold 42px 'Sarabun', 'Franklin Gothic Medium', sans-serif", 
         nameColor: "#1c140e",            
-        nameYOffset: 480, 
-        dateFont: "26px 'Sarabun', sans-serif", 
+        nameYOffset: 345,      // ขยับพิกัดชื่อขึ้นมาให้อยู่ระนาบกึ่งกลางแผ่นพอดี
+        dateFont: "24px 'Sarabun', sans-serif", 
         dateColor: "#1c140e", 
-        dateYOffset: 620, 
+        dateYOffset: 465,      // ขยับพิกัดวันที่อบรมลงมาให้ได้สัดส่วนแถวล่าง
         align: "center"
     };
 
@@ -217,20 +218,28 @@
         bsPreviewModal.show();
 
         const img = new Image();
-        img.crossOrigin = "Anonymous";
+        // ✨ แลกสิทธิ์ CORS กับฝั่ง Supabase Storage
+        img.crossOrigin = "Anonymous"; 
         img.onload = function() {
             canvas.width = img.width;
             canvas.height = img.height;
             const ctx = canvas.getContext('2d');
+            
+            // 🔥 [แก้ไขปัญหาเงาซ้อน] สั่งเคลียร์และล้างผิวกระดานวาดเก่าออกก่อนทุกครั้ง
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // วาดภาพโครงใบประกาศแนวนอน
             ctx.drawImage(img, 0, 0);
 
             let centerX = img.width / 2;
 
+            // พิมพ์ตัวหนังสือชื่อภาษาอังกฤษ
             ctx.font = CANVAS_CONFIG.nameFont;
             ctx.fillStyle = CANVAS_CONFIG.nameColor;
             ctx.textAlign = CANVAS_CONFIG.align;
             ctx.fillText(fullNameStr, centerX, CANVAS_CONFIG.nameYOffset);
 
+            // พิมพ์ตัวหนังสือวันที่จัดอบรมจริง
             ctx.font = CANVAS_CONFIG.dateFont;
             ctx.fillStyle = CANVAS_CONFIG.dateColor;
             ctx.fillText(sessionDateStr, centerX, CANVAS_CONFIG.dateYOffset);
@@ -239,7 +248,7 @@
             canvas.classList.remove('d-none');
         };
         img.onerror = function() {
-            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเข้าถึงไฟล์ภาพโครงสร้างต้นแบบใบประกาศได้', 'error');
+            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเข้าถึงไฟล์ภาพโครงสร้างต้นแบบใบประกาศได้เนื่องจากติดสิทธิ์ CORS หลังบ้านของตู้เก็บไฟล์ (Bucket)', 'error');
             bsPreviewModal.hide();
         };
         img.src = TEMPLATE_IMAGE_URL;
@@ -296,7 +305,6 @@
         }
     }
 
-    // ระบบทำงานแบบกลุ่มแบบแบ่งก้อน (Chunking) รอบละ 40 คน ป้องกันระบบล่ม 100%
     async function triggerGenBatch() {
         const selectedCbs = Array.from(document.querySelectorAll('.row-select:checked'));
         if(selectedCbs.length === 0) return;

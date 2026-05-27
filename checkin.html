@@ -166,7 +166,7 @@
         } catch (e) {
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
-        } finally { 
+        } finaly { 
             document.getElementById('searchLoader').style.display = 'none';
             if(btnManual) btnManual.disabled = false;
             isProcessing = false; 
@@ -191,10 +191,10 @@
                     .eq('id', user.id);
                 if (updateError) throw updateError;
 
-                // 2. นำข้อมูลโครงสร้างจัดส่ง Insert แถวเพิ่มเข้าไปตาราง certificates_queue บน Supabase
+                // 2. ส่งข้อมูลโครงสร้างเข้าสู่ตาราง certificates_queue บน Supabase
+                // 💡 (ปล่อยให้ Trigger ในฐานข้อมูลทำหน้าที่แปลงวันที่จากฟิลด์ created_at เองอัตโนมัติ)
                 let finalPrefix = user.prefix ? user.prefix + " " : "";
                 let finalFullNameEn = `${finalPrefix}${user.full_name_en}`.trim();
-                let finalTrainingDate = user.training_date || user.session_info.date || "ไม่ระบุรอบ";
 
                 const { error: queueError } = await supabaseClient
                     .from('certificates_queue')
@@ -202,13 +202,11 @@
                         registration_id: String(user.id).trim(),
                         course_key: String(user.course_key).trim(),
                         full_name_en: finalFullNameEn,
-                        training_date: finalTrainingDate,
                         pdf_status: "คิวว่าง"
                     }]);
                 if (queueError) throw queueError;
 
                 // 3. สั่งยิงข้อมูลสั่งการทาง HTTP POST บอกให้ท่อนเซิร์ฟเวอร์ GAS บันทึกเวลาลงสเปรดชีต
-                // ⚠️ ตรวจเช็กชื่อตัวแปร URL ในไฟล์ config.js ให้ตรงกันด้วยนะครับช่าง (เช่น MAIN_REG_API_URL หรือชื่ออื่น)
                 let targetApiUrl = (typeof MAIN_REG_API_URL !== 'undefined') ? MAIN_REG_API_URL : GOOGLE_SHEET_API;
                 
                 const response = await fetch(targetApiUrl, {
@@ -225,8 +223,17 @@
             } else {
                 // 🔄 โหมดเช็คเอาท์ (ยกเลิก): อัปเดตข้อมูลตารางหลักกลับคืนสถานะปกติ
                 let updateField = { is_checked_in: false, checked_in_at: null };
-                const { error: updateError } = await supabaseClient.from('registrations').update(updateField).eq('id', user.id);
+                const { error: updateError } = await supabaseClient
+                    .from('registrations')
+                    .update(updateField)
+                    .eq('id', user.id);
                 if (updateError) throw updateError;
+                
+                // 💡 เคลียร์คิวใบประกาศเดิมออกจากตารางเมื่อมีการยกเลิกเช็คอิน
+                await supabaseClient
+                    .from('certificates_queue')
+                    .delete()
+                    .eq('registration_id', String(user.id).trim());
             }
 
             // แสดงผลการบันทึกข้อความเรียบร้อยตามเป้าหมาย (Complete)

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Certificate Hub - RJRH TRAINING CENTER</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- 🎯 ฝังเว็บฟอนต์ Libre Franklin จาก Google Fonts เพื่อรองรับการแสดงผลฟอนต์ Franklin สากลเหมือนกันทุกเครื่อง -->
+    <!-- 🎯 ฝังเว็บฟอนต์ Libre Franklin จาก Google Fonts เพื่อรองรับโครงสร้างสไตล์สากลเหมือนกันทุกอุปกรณ์ -->
     <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -32,7 +32,7 @@
         <div class="card p-4 bg-white">
             <div class="row g-3 align-items-end mb-4">
                 <div class="col-md-7">
-                    <label class="form-label fw-bold text-primary"><i class="fas fa-filter me-1"></i> เลเลือกรอบหลักสูตร (ข้อมูลคิวออกใบประกาศจากตารางศูนย์กลาง)</label>
+                    <label class="form-label fw-bold text-primary"><i class="fas fa-filter me-1"></i> เลือกรอบหลักสูตร (ข้อมูลคิวออกใบประกาศจากตารางศูนย์กลาง)</label>
                     <select class="form-select bg-light form-control-lg fw-bold" id="certSessionSelect" onchange="loadCertificatesQueue()">
                         <option value="">-- เลือกรอบอบรมเพื่อคัดกรองคิวงาน --</option>
                     </select>
@@ -75,6 +75,7 @@
         </div>
     </div>
 
+    <!-- หน้าต่างโมดอลสำหรับแสดงพี่วิวภาพ Canvas -->
     <div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content rounded-4 border-0 shadow-lg">
@@ -104,17 +105,17 @@
 <script src="config.js"></script>
 
 <script>
-    // 🎯 ล็อกภาพแม่แบบตัวหลักตามที่เลือกไว้
+    // 🎯 ล็อกภาพแม่แบบตัวหลักแม่นยำ
     const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
     
-    // 🎯 ล็อกชุดโครงสร้าง TEXT_CONFIG และพิกัดฟอนต์สไตล์ Libre Franklin ความละเอียดสูงตามแบบที่ต้องการ
+    // 🎯 ล็อกชุดโครงสร้างพิมพ์เขียวตามภาพโมเดลพรีวิวล่าสุด (อักษรสีดำเดี่ยวคมชัด)
     const TEXT_CONFIG = {
-        nameFont: "bold 55px 'Libre Franklin', sans-serif", // ฟอนต์ใหญ่ 55px ทับรอย CHAICHANA ด้านบนพอดี
-        nameColor: "#1c140e",            
-        nameYOffset: 345,                                  // 📍 พิกัดเลื่อนขึ้นไปถมรอยชื่อด้านบน
-        dateFont: "30px 'Libre Franklin', sans-serif",     // ฟอนต์ขนาดพอดีรอยวันที่เดิม
-        dateColor: "#1c140e", 
-        dateYOffset: 465,                                  // 📍 พิกัดเลื่อนขึ้นไปถมรอยใต้วงสีแดงพอดี
+        nameFont: "bold 52px 'Libre Franklin', sans-serif", // ฟอนต์ใหญ่เด่นสง่าตรงกลางช่องว่างชื่อ
+        nameColor: "#000000",                               // 🎨 ปรับสีตัวหนังสือเป็นสีดำสนิท
+        nameYOffset: 480,                                   // 📍 ระนาบดิ่งช่องกึ่งกลางชื่อ (เหนือข้อความ FOR SUCCESSFULLY...)
+        dateFont: "500 24px 'Libre Franklin', sans-serif",  // ฟอนต์ขนาดสวยอ่านง่ายเข้าบล็อก
+        dateColor: "#000000",                               // 🎨 ปรับสีตัวหนังสือเป็นสีดำสนิท
+        dateYOffset: 645,                                   // 📍 ระนาบดิ่งช่องกึ่งกลางวันที่ (เหนือชื่อ Instructor CHAICHANA...)
         align: "center",             
         xOffset: "center" 
     };
@@ -123,7 +124,7 @@
     let localQueueData = [];
     let bsPreviewModal;
     
-    // 🎯 ตัวแปรเก็บ Object รูปภาพและสถานะฟอนต์โหลดล่วงหน้าใน Memory
+    // 🎯 ตัวแปรถือออบเจกต์ภาพสำหรับตุนข้อมูลใส่ Memory ล่วงหน้า
     let preloadedTemplateImage = null;
 
     window.addEventListener('DOMContentLoaded', async () => {
@@ -131,16 +132,16 @@
         bsPreviewModal = new bootstrap.Modal(document.getElementById('previewModal'));
         
         loadSessions();
-        preloadTemplate(); // 🚀 สั่งระบบเริ่มทำ Image Preloading รอหลังบ้านทันทีตั้งแต่เปิดเว็บ
+        preloadTemplate(); // 🚀 สั่งโหลดรูปภาพและฟอนต์มารอไว้หลังบ้านทันทีตั้งแต่เริ่มเปิดหน้าเว็บ
     });
 
-    // 🚀 ระบบดึงรูปภาพและเตรียมฟอนต์ Libre Franklin ใส่ Cache เครื่องไว้ล่วงหน้าเพื่อลดปัญหาพรีวิวช้า
+    // 🚀 ฟังก์ชัน Preloading ภาพแม่แบบขนาดใหญ่และฟอนต์ใส่แรมเครื่องเพื่อสปีดความเร็วพรีวิว
     function preloadTemplate() {
         preloadedTemplateImage = new Image();
         preloadedTemplateImage.crossOrigin = "Anonymous";
         preloadedTemplateImage.src = TEMPLATE_IMAGE_URL; 
         
-        // สั่งเบราว์เซอร์แอบดึงโครงสร้างฟอนต์หลักมารอไว้ก่อน
+        // สั่งโหลดฟอนต์ Libre Franklin มารอไว้ล่วงหน้า
         document.fonts.load(TEXT_CONFIG.nameFont);
     }
 
@@ -154,6 +155,7 @@
         });
     }
 
+    // โหลดคิวงานและเซฟข้อมูลยกก้อนตุนใส่ Cache บนหน้าจอ
     async function loadCertificatesQueue() {
         const courseKey = document.getElementById('certSessionSelect').value; 
         document.getElementById('checkAllMaster').checked = false;
@@ -174,6 +176,7 @@
             return; 
         }
         
+        // 🚀 เก็บลงตัวแปรแรมเครื่องเพื่อเร่งสปีดพรีวิวไม่ให้หน่วงช้า
         localQueueData = list || [];
         tbody.innerHTML = '';
         
@@ -205,7 +208,8 @@
                     <td class="text-center">${statusBadge}</td>
                     <td class="text-center">
                         <div class="btn-group gap-1">
-                            <button class="btn btn-sm btn-outline-info px-2" onclick="fetchTextAndPreview('${row.registration_id}')" title="พรีวิวตรวจสอบความสมดุลตัวอักษร"><i class="fas fa-desktop"></i></button>
+                            <!-- เรียกใช้ระบบความเร็วแสงดึงผ่านตำแหน่งดัชนี index ของแรมเบราว์เซอร์ -->
+                            <button class="btn btn-sm btn-outline-info px-2" onclick="fetchTextAndPreviewFast(${index})" title="พรีวิวด่วนพิเศษความเร็วแสง"><i class="fas fa-desktop"></i></button>
                             ${viewBtn}
                             <button class="btn btn-sm btn-success fw-bold px-2" onclick="triggerGenSingle('${row.registration_id}', '${row.course_key}')" id="btn_gen_${row.registration_id}"><i class="fas fa-cog"></i> GEN</button>
                         </div>
@@ -214,24 +218,24 @@
         });
     }
 
-    // ⚡ ฟังก์ชันเรียกเปิดพรีวิวด่วนพิเศษแบบแก้ปัญหาเรื่องดาวน์โหลดภาพหน่วงช้า
-    function fetchTextAndPreview(regId) {
-        const row = localQueueData.find(item => String(item.registration_id).trim() === String(regId).trim());
+    // ⚡ ฟังก์ชันพรีวิวระดับท็อปสปีด: ดึงก้อนอักษรและภาพใน RAM สลักลงพิกัดเป้าหมายเสร็จสิ้นทันที
+    function fetchTextAndPreviewFast(index) {
+        const row = localQueueData[index];
         
         if (!row) {
-            Swal.fire('ไม่พบรายชื่อ', 'ไม่พบข้อมูลในตารางคิว Supabase', 'warning');
+            Swal.fire('ไม่พบรายชื่อ', 'เกิดข้อผิดพลาดในการดึงพิกัดลำดับคิวข้อมูล', 'warning');
             return;
         }
 
-        document.getElementById('loadingText').style.display = 'flex';
         const canvas = document.getElementById('previewCanvas');
         canvas.classList.add('d-none');
+        document.getElementById('loadingText').style.display = 'flex';
         bsPreviewModal.show();
 
         let fullNameStr = row.full_name_en || "ไม่ระบุชื่อ";
         let dateStr = row.training_date || "";
 
-        // ฟังก์ชันใจกลางการประทับตัวหนังสือนามสกุลและวันที่ลงแผ่นกระดาน Canvas
+        // ฟังก์ชันวาดภาพปั๊มอักษรสีดำลงกระดานภาพความละเอียดสูง
         function drawCanvasContent(imgObj) {
             canvas.width = imgObj.width;
             canvas.height = imgObj.height;
@@ -242,13 +246,13 @@
 
             let centerX = imgObj.width / 2;
 
-            // ประทับชื่อภาษาอังกฤษ (ดึงพิกัดระนาบตรงตาม TEXT_CONFIG ฟอนต์สากล)
+            // 🎨 ประทับชื่อภาษาอังกฤษเด่นหรูหรากึ่งกลางหน้ากระดาษ (สีดำ)
             ctx.font = TEXT_CONFIG.nameFont;
             ctx.fillStyle = TEXT_CONFIG.nameColor;
             ctx.textAlign = TEXT_CONFIG.align;
             ctx.fillText(fullNameStr, centerX, TEXT_CONFIG.nameYOffset);
 
-            // ประทับวันที่จัดกิจกรรม
+            // 🎨 ประทับวันที่จัดกิจกรรมระบุด้านล่าง (สีดำ)
             if (dateStr) {
                 ctx.font = TEXT_CONFIG.dateFont;
                 ctx.fillStyle = TEXT_CONFIG.dateColor;
@@ -259,18 +263,17 @@
             canvas.classList.remove('d-none');
         }
 
-        // 🎯 ตรวจจับความพร้อมของภาพที่แอบโหลด Preloading มารอไว้
+        // 🚀 ทางด่วนขีดสุด: ถ้ารูปโหลดนอนรอใน Cache แรมเครื่องอยู่แล้ว สั่งปั๊มพรีวิวดีดขึ้นจอทันที!
         if (preloadedTemplateImage && preloadedTemplateImage.complete && preloadedTemplateImage.naturalWidth !== 0) {
-            // 🔥 ทางด่วนขั้นสุด: วาดทันทีเพราะภาพและฟอนต์สแตนด์บายอยู่ในแรมเครื่องเรียบร้อยแล้ว
             drawCanvasContent(preloadedTemplateImage);
         } else {
-            // ทางสำรอง: กรณีที่อินเทอร์เน็ตหน้างานหน่วงจัดตอนเปิดแอปวินาทีแรก ให้รอ onload ทำตามสเต็ปเดิม
+            // ระบบสำรองหากอินเทอร์เน็ตหน้างานหน่วงช้าในจังหวะเปิดเว็บครั้งแรก ให้รอ Onload ตามปกติ
             preloadedTemplateImage.onload = function() {
                 drawCanvasContent(preloadedTemplateImage);
             };
             preloadedTemplateImage.onerror = function() {
                 document.getElementById('loadingText').style.display = 'none';
-                Swal.fire('ข้อผิดพลาด', 'ภาพขัดข้องเรื่องลิขสิทธิ์สิทธิ์ CORS หรือลิงก์สตอเรจพัง', 'error');
+                Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อดึงภาพเพื่อเรนเดอร์พรีวิวได้', 'error');
                 bsPreviewModal.hide();
             };
         }

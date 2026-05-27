@@ -4,7 +4,7 @@ const SUPABASE_URL = "https://ghgmupyrkeakyolliogv.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoZ211cHlya2Vha3lvbGxpb2d2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNDE0ODksImV4cCI6MjA5NDgxNzQ4OX0.RSciT8WVeD9bwmo3DlMhw4KsdM1ftgKXka9QI9pvYzs"; 
 
 // Google Apps Script Web App APIs
-const GOOGLE_SHEET_API = "https://script.google.com/macros/s/AKfycbyi4yhs6KQ9ajFJmG9h0jq_Alhm4ko-8vokVSmLy5VZdG_ATpi6JlQ7Py4ykuHjZDwX/exec";
+const GOOGLE_SHEET_API = "https://script.google.com/macros/s/AKfycbzn2k_w7Ye_HTBF5-wqXnxj_DRvhK4FGYnpisa8noAqfQSGATKRn9_yBMjyJGMsJ14W/exec";
 const CERT_STB_API = "https://script.google.com/macros/s/AKfycby0ebBHlmguiJX9RYqX7cBhKV7Cni42Xn6IsJfbjvS2EIZFrBJpu31fI2gQ2Xm5cOEh/exec";
 
 // ประกาศตัวแปรเซสชันเพื่อให้เรียกใช้ร่วมกันได้ง่าย

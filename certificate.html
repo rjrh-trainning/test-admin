@@ -21,7 +21,7 @@
     <nav class="navbar navbar-dark shadow-sm mb-4">
         <div class="container d-flex justify-content-between align-items-center">
             <span class="navbar-brand fw-bold d-flex align-items-center">
-                <i class="fas fa-certificate me-2 text-warning"></i> RJRH - ฝ่ายออกใบวุฒิบัตร (ดึงข้อมูลตรงจาก Google Sheet)
+                <i class="fas fa-certificate me-2 text-warning"></i> RJRH - ฝ่ายออกใบวุฒิบัตร (ข้อมูลจาก Supabase & คิวไฮบริด)
             </span>
             <a class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold" href="index.html"><i class="fas fa-arrow-left me-1"></i> กลับหน้าเมนู</a>
         </div>
@@ -31,9 +31,9 @@
         <div class="card p-4 bg-white">
             <div class="row g-3 align-items-end mb-4">
                 <div class="col-md-7">
-                    <label class="form-label fw-bold text-primary"><i class="fas fa-filter me-1"></i> เลือกรอบหลักสูตร (ดึงข้อมูลผู้เรียนตามชื่อแท็กรหัสย่อใน Google Sheet)</label>
-                    <select class="form-select bg-light form-control-lg fw-bold" id="certSessionSelect" onchange="loadParticipantsFromSheet()">
-                        <option value="">-- เลือกรอบอบรมเพื่อดึงข้อมูลจาก Sheet --</option>
+                    <label class="form-label fw-bold text-primary"><i class="fas fa-filter me-1"></i> เลือกรอบหลักสูตร (ระบบคัดรายชื่อเฉพาะผู้ที่เช็คอินแล้วจาก Supabase)</label>
+                    <select class="form-select bg-light form-control-lg fw-bold" id="certSessionSelect" onchange="loadParticipantsForCert()">
+                        <option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>
                     </select>
                 </div>
                 <div class="col-md-5 text-md-end">
@@ -41,12 +41,11 @@
                 </div>
             </div>
 
-            <!-- แผงควบคุมการทำงานแบบกลุ่ม -->
             <div id="batchActionBar" class="batch-bar p-3 mb-4 flex-column flex-sm-row justify-content-between align-items-center gap-3">
                 <div class="d-flex align-items-center gap-3">
                     <div class="p-2.5 bg-primary text-white rounded-3 text-center" style="width: 40px; height: 40px;"><i class="fas fa-tasks"></i></div>
                     <div>
-                        <div class="text-muted small fw-bold">การทำงานแบบกลุ่มย่อย (จำกัดรอบละ 40 คน)</div>
+                        <div class="text-muted small fw-bold">การทำงานแบบกลุ่มย่อย (ระบบล็อกความปลอดภัยก้อนละ 40 คน)</div>
                         <div class="fw-bold text-dark">เลือกอยู่ทั้งหมด <span id="selectedCountText" class="fs-4 text-primary font-black mx-1">0</span> รายการ</div>
                     </div>
                 </div>
@@ -61,21 +60,20 @@
                                 <input type="checkbox" id="checkAllMaster" onclick="toggleSelectAll(this)" class="form-check-input cursor-pointer">
                             </th>
                             <th width="60" class="text-center">ลำดับ</th>
-                            <th>ชื่อ-นามสกุล (ดึงจาก Sheet คอลัมน์ D)</th>
-                            <th width="160" class="text-center">วันที่อบรม (คอลัมน์ J)</th>
-                            <th width="150" class="text-center">ลิงก์ใบประกาศ</th>
+                            <th>ชื่อ-นามสกุล (สำหรับพิมพ์วุฒิบัตร)</th>
+                            <th width="140" class="text-center">รหัสลงทะเบียน</th>
+                            <th width="160" class="text-center">สถานะใบประกาศ</th>
                             <th width="180" class="text-center">การจัดการ</th>
                         </tr>
                     </thead>
                     <tbody id="certParticipantList">
-                        <tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> กรุณาเลือกรอบการอบรมด้านบนเพื่อโหลดข้อมูลรายชื่อจาก Google Sheet</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> กรุณาเลือกรอบการอบรมด้านบนเพื่อดึงรายชื่อจากคลังฐานข้อมูล Supabase</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- ม็อดดัลพรีวิวใบประกาศด่วนด้วย Canvas -->
     <div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content rounded-4 border-0 shadow-lg">
@@ -105,10 +103,10 @@
 <script src="config.js"></script>
 
 <script>
-    // ดึงคลังโครงใบประกาศแนวนอนจากคลังเก็บไฟล์ที่เสถียรของคุณบน Supabase Storage
+    // ตั้งค่ารูปโครงสร้างแนวนอนจากคลัง Supabase Storage และกำหนดพิกัดสำหรับพิมพ์ชื่อ-วันที่
     const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
     const CANVAS_CONFIG = {
-        nameFont: "bold 40px 'Sarabun', sans-serif", 
+        nameFont: "bold 42px 'Sarabun', 'Franklin Gothic Medium', sans-serif", 
         nameColor: "#1c140e",            
         nameYOffset: 345,      
         dateFont: "24px 'Sarabun', sans-serif", 
@@ -117,10 +115,9 @@
         align: "center"
     };
 
-    // ประกาศ ID โฟลเดอร์ปลายทางของคอร์สต่างๆ เพื่อส่งพ่วงคุมคิวงานหลังบ้าน
+    // ประกาศรหัสโฟลเดอร์สำหรับส่งพ่วงควบคุมปลายทางจัดเก็บไฟล์ PDF ของคอร์ส STB บน Google Drive
     const FOLDER_CONFIG = {
         "STB": "1fHNt7UAIlq-9zP9LvTYhJiOd4TQs6PLb"
-        // ในอนาคตสามารถเพิ่ม "BLS": "ID_FOLDER_BLS" ต่อท้ายตรงนี้ได้เลยครับ
     };
 
     let localParticipantsData = [];
@@ -136,90 +133,89 @@
         const sel = document.getElementById('certSessionSelect');
         const { data: sessions, error } = await supabaseClient.from('sessions').select('*').order('id', { ascending: true });
         if (error) return;
-        sel.innerHTML = '<option value="">-- เลือกรอบอบรมเพื่อดึงข้อมูลจาก Sheet --</option>';
+        sel.innerHTML = '<option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>';
         sessions.forEach(s => { 
-            sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name}</option>`; 
+            sel.innerHTML += `<option value="${s.course_key}" data-fullname="${s.name}" data-sysdate="${s.date}">[${s.course_key}] ${s.name} [รอบ: ${s.date}]</option>`; 
         });
     }
 
-    // ฟังก์ชันเปลี่ยนมาดึง Data ตรงจาก Google Sheet ตามชื่อแท็บ Course Key
-async function loadParticipantsFromSheet() {
+    // 1. การดึงรายชื่อมาแสดงผลบนตาราง: ดึงจากฐานข้อมูล Supabase ตามปกติ
+    async function loadParticipantsForCert() {
         const courseKey = document.getElementById('certSessionSelect').value; 
         document.getElementById('checkAllMaster').checked = false;
         updateBatchUI();
         
         if(!courseKey) return;
         const tbody = document.getElementById('certParticipantList'); 
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm me-2"></div>กำลังเชื่อมต่อผ่านระบบสะพานข้อมูล Google Sheet...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm me-2"></div>กำลังดึงข้อมูลผู้ร่วมกิจกรรมจากฐานข้อมูล Supabase...</td></tr>';
         
-        // สร้างแท็กพิเศษวิ่งหลบการตรวจสิทธิ์รักษาความปลอดภัยของเบราว์เซอร์
-        const script = document.createElement('script');
-        script.src = `${GOOGLE_SHEET_API}?action=getCertData&courseKey=${courseKey}&callback=handleSheetResponse`;
-        
-        script.onerror = function() {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-5 fw-bold"><i class="fas fa-exclamation-triangle me-1"></i> ไม่สามารถเชื่อมต่อสคริปต์ Google Sheet ได้ กรุณาตรวจสอบสิทธิ์ Deployment หลังบ้าน</td></tr>`;
-        };
-        
-        document.body.appendChild(script); // สั่งรันโครงสร้างสคริปต์เพื่อดึง Data
-    }
-
-    // 🔥 2. เพิ่มฟังก์ชันกลางเพื่อแกะก้อนข้อมูล JSON ที่ไหลมาจาก Google Sheet
-    window.handleSheetResponse = function(result) {
-        const tbody = document.getElementById('certParticipantList'); 
-        
-        // เคลียร์แท็กสคริปต์ข้ามระบบทิ้งเพื่อรักษาความเบาของหน้าเว็บ
-        const scripts = document.querySelectorAll('script[src*="action=getCertData"]');
-        scripts.forEach(s => s.remove());
-
-        if (!result.success) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-5 fw-bold"><i class="fas fa-exclamation-triangle me-1"></i> เกิดข้อผิดพลาดจาก Sheets: ${result.msg}</td></tr>`;
-            return;
+        const { data: list, error } = await supabaseClient
+            .from('registrations')
+            .select('*')
+            .eq('course_key', courseKey)
+            .eq('is_checked_in', true)
+            .order('created_at', { ascending: true });
+            
+        if(error) { 
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-5 fw-bold">เกิดข้อผิดพลาดในการเชื่อมต่อข้อมูลคลังคิวงาน</td></tr>'; 
+            return; 
         }
-
-        localParticipantsData = result.data || [];
+        
+        localParticipantsData = list || [];
         tbody.innerHTML = '';
         
         if(localParticipantsData.length === 0) { 
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> ไม่พบข้อมูลผู้ลงทะเบียนในแท็บคอร์สนี้ บน Google Sheet</td></tr>'; 
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5 fw-bold"><i class="fas fa-info-circle me-1"></i> ยังไม่มีรายชื่อผู้ผ่านการเช็คอินรายงานตัวในรอบคอร์สหลักสูตรนี้</td></tr>'; 
             return; 
         }
 
         localParticipantsData.forEach((row, index) => {
-            let displayName = row.fullName || "ไม่ระบุชื่อ";
-            let dateTraining = row.dateStr || "ไม่ระบุวันที่";
+            let prefixStr = row.prefix ? row.prefix + " " : "";
+            let displayNameEn = `${prefixStr}${row.full_name_en}`.trim();
             
-            let statusBadge = row.pdfUrl 
-                ? `<span class="badge bg-success px-3 py-1.5" id="badge_${row.regId}"><i class="fas fa-check-circle me-1"></i>ออกสำเร็จ</span>` 
-                : `<span class="badge bg-secondary px-3 py-1.5" id="badge_${row.regId}">รอประมวลผล</span>`;
+            let statusBadge = `<span class="badge bg-secondary px-3 py-1.5" id="badge_${row.id}">คิวว่าง</span>`;
+            if (row.pdf_status === "รอส่ง") {
+                statusBadge = `<span class="badge bg-warning text-dark px-3 py-1.5" id="badge_${row.id}"><i class="fas fa-clock me-1"></i>รอส่งเมล</span>`;
+            } else if (row.pdf_status === "ส่งแล้ว" || row.certificate_url) {
+                statusBadge = `<span class="badge bg-success px-3 py-1.5" id="badge_${row.id}"><i class="fas fa-check-circle me-1"></i>ออกสำเร็จ</span>`;
+            }
 
-            let viewBtn = row.pdfUrl ? `<a href="${row.pdfUrl}" target="_blank" class="btn btn-sm btn-outline-primary px-2" id="btn_view_${row.regId}" title="เปิดดูไฟล์ PDF บน Drive"><i class="fas fa-eye"></i></a>` : '';
+            let viewBtn = row.certificate_url ? `<a href="${row.certificate_url}" target="_blank" class="btn btn-sm btn-outline-primary px-2" id="btn_view_${row.id}" title="เปิดดูไฟล์จริงบน Drive"><i class="fas fa-eye"></i></a>` : '';
 
             tbody.innerHTML += `
                 <tr class="hover-shadow-sm">
                     <td class="text-center">
-                        <input type="checkbox" class="form-check-input row-select cursor-pointer" value="${row.regId}" data-index="${index}" onclick="onRowSelectChange()">
+                        <input type="checkbox" class="form-check-input row-select cursor-pointer" value="${row.id}" data-index="${index}" onclick="onRowSelectChange()">
                     </td>
                     <td class="text-center fw-bold text-muted">${index + 1}</td>
-                    <td><b class="text-primary fs-6">${displayName}</b></td>
-                    <td class="text-center font-medium">${dateTraining}</td>
+                    <td>
+                        <b class="text-primary fs-6">${displayNameEn}</b>
+                        <div class="text-muted small font-medium mt-0.5"><i class="far fa-user me-1"></i>${row.full_name_th}</div>
+                    </td>
+                    <td class="text-center"><code>${row.id}</code></td>
                     <td class="text-center">${statusBadge}</td>
                     <td class="text-center">
                         <div class="btn-group gap-1">
-                            <button class="btn btn-sm btn-outline-info px-2" onclick="openClientPreview('${index}')" title="พรีวิวตรวจสอบความถูกต้อง"><i class="fas fa-desktop"></i></button>
+                            <button class="btn btn-sm btn-outline-info px-2" onclick="openClientPreview('${index}')" title="พรีวิวใบประกาศแคมปัสเร่งด่วน"><i class="fas fa-desktop"></i></button>
                             ${viewBtn}
-                            <button class="btn btn-sm btn-success fw-bold px-2" onclick="triggerGenSingle('${row.regId}', '${document.getElementById('certSessionSelect').value}')" id="btn_gen_${row.regId}"><i class="fas fa-cog"></i> GEN</button>
+                            <button class="btn btn-sm btn-success fw-bold px-2" onclick="triggerGenSingle('${row.id}', '${row.course_key}')" id="btn_gen_${row.id}"><i class="fas fa-cog"></i> GEN</button>
                         </div>
                     </td>
                 </tr>`;
         });
     }
-    // ฟังก์ชันดึงชื่อและวันที่จากข้อมูลสเปรดชีตมาแสตมป์ภาพพรีวิว
+
+    // 2. การพรีวิวบนหน้าจอ: แกะข้อมูลรายชื่อจากก้อน Supabase ในตารางมาแสตมป์ทับภาพโครงสร้าง
     function openClientPreview(index) {
         const row = localParticipantsData[index];
         if(!row) return;
 
-        let fullNameStr = (row.fullName || "").trim();
-        let sessionDateStr = (row.dateStr || "").trim();
+        let prefixStr = row.prefix ? row.prefix + " " : "";
+        let fullNameStr = `${prefixStr}${row.full_name_en}`.trim();
+        
+        const selectElement = document.getElementById('certSessionSelect');
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        let sessionDateStr = selectedOption ? selectedOption.getAttribute('data-sysdate') : "ไม่ระบุวันที่";
 
         document.getElementById('previewNameText').innerText = fullNameStr;
         document.getElementById('loadingText').style.display = 'flex';
@@ -228,15 +224,17 @@ async function loadParticipantsFromSheet() {
         canvas.classList.add('d-none');
         bsPreviewModal.show();
 
-        document.fonts.load("bold 40px 'Sarabun'").then(() => {
+        // บังคับสคริปต์รอโหลดฟอนต์ Sarabun ป้องกันระบบพรีวิวค้างแถบแดง
+        document.fonts.load("bold 42px 'Sarabun'").then(() => {
             const img = new Image();
-            img.crossOrigin = "Anonymous"; 
+            img.crossOrigin = "Anonymous"; // เรียกขอสิทธิ์แลกสิทธิ์ CORS
+            
             img.onload = function() {
                 canvas.width = img.width;
                 canvas.height = img.height;
                 const ctx = canvas.getContext('2d');
                 
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // ล้างคราบนามสกุลเดิมออกทิ้ง
                 ctx.drawImage(img, 0, 0);
 
                 let centerX = img.width / 2;
@@ -253,12 +251,25 @@ async function loadParticipantsFromSheet() {
                 document.getElementById('loadingText').style.display = 'none';
                 canvas.classList.remove('d-none');
             };
+            
             img.onerror = function() {
+                // ระนาบสำรองกรณีสิทธิ์ตู้ Bucket Supabase เกิดการบล็อกความปลอดภัย CORS
                 document.getElementById('loadingText').style.display = 'none';
-                Swal.fire('ข้อผิดพลาด', 'กรุณาตรวจสอบสิทธิ์เปิดสากล CORS (*) บนคลัง Storage ของ Supabase ด้วยครับ', 'error');
-                bsPreviewModal.hide();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'ตรวจสอบระบบรักษาความปลอดภัยสิทธิ์ CORS',
+                    html: `ภาพโครงสร้างพื้นหลังติดเงื่อนไขความปลอดภัย CORS หลังบ้านสเปซโปรเจกต์<br><br><b>คำแนะนำความเสถียร:</b> ให้เข้าไปเปิดสิทธิ์ <i>Allowed Origins เป็น <code>*</code></i> ในเมนู Bucket Settings ของตู้นี้บนหน้าเว็บ Supabase ครับ`
+                });
+                
+                canvas.width = 800; canvas.height = 565;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = "#f1f5f9"; ctx.fillRect(0,0,800,565);
+                ctx.font = "20px Sarabun"; ctx.fillStyle = "#475569"; ctx.textAlign = "center";
+                ctx.fillText("ภาพโครงสร้างพรีวิวติดข้อจำกัดสิทธิ์ CORS สภาพแวดล้อมหลังบ้าน", 400, 280);
+                canvas.classList.remove('d-none');
             };
-            img.src = TEMPLATE_IMAGE_URL + "?t=" + new Date().getTime();
+            
+            img.src = TEMPLATE_IMAGE_URL + "?t=" + new Date().getTime(); // เพิ่มรหัสสกัดแคชเดิมทิ้ง
         });
     }
 
@@ -289,15 +300,14 @@ async function loadParticipantsFromSheet() {
         }
     }
 
-    // ฟังก์ชันสั่งงานเดี่ยว ยิงส่งค่า Payload เจาะจงปลายทางโฟลเดอร์สำหรับคอร์ส STB ตรงไปที่ระบบ Apps Script
+    // 3. การสร้างใบประกาศทีละใบ: ส่งข้อมูลชี้เป้าโฟลเดอร์รันบันทึกลิงก์ข้ามระบบ
     async function triggerGenSingle(regId, courseKey) {
         const btn = document.getElementById(`btn_gen_${regId}`);
         const badge = document.getElementById(`badge_${regId}`);
         if(btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`; }
         if(badge) { badge.className = "badge bg-info text-dark animate-pulse"; badge.innerHTML = `กำลังเจน...`; }
 
-        // ดักคัดเอา ID Folder ตามคอร์สหลักสูตร (ถ้าเป็น STB จะชี้ไปโฟลเดอร์ 1fHNt7UAIlq-9zP9LvTYhJiOd4TQs6PLb ทันที)
-        let targetFolderId = FOLDER_CONFIG[courseKey] || "";
+        let targetFolderId = FOLDER_CONFIG[courseKey] || ""; // ดึง ID โฟลเดอร์ของ STB จาก FOLDER_CONFIG
 
         try {
             const response = await fetch(CERT_STB_API, {
@@ -306,7 +316,7 @@ async function loadParticipantsFromSheet() {
                 body: JSON.stringify({ 
                     regId: regId, 
                     courseKey: courseKey,
-                    folderId: targetFolderId // ส่งตัวแปรโฟลเดอร์กลางควบคุมข้ามระบบไปด้วย
+                    folderId: targetFolderId 
                 })
             });
             const result = await response.json();
@@ -321,7 +331,7 @@ async function loadParticipantsFromSheet() {
         }
     }
 
-    // ระบบรันกลุ่มจำกัดก้อนละไม่เกิน 40 คน เพื่อความปลอดภัยและถนอมหน่วยความจำของสคริปต์หลังบ้าน
+    // 4. ระบบการสร้างแบบกลุ่มไฮบริด: วนลูป Async คุมความปลอดภัยตัดรอบก้อนละ 40 ใบ
     async function triggerGenBatch() {
         const selectedCbs = Array.from(document.querySelectorAll('.row-select:checked'));
         if(selectedCbs.length === 0) return;
@@ -331,8 +341,8 @@ async function loadParticipantsFromSheet() {
         
         if (selectedCbs.length > CHUNK_SIZE) {
             const confirmRes = await Swal.fire({
-                title: 'จัดสรรคิวงานปริมาณมาก',
-                html: `คุณเลือกรายชื่อทั้งหมด <b>${selectedCbs.length} รายการ</b> ระบบจะแบ่งกลุ่มทำก้อนแรกจำนวน <b>${CHUNK_SIZE} รายการ</b> เพื่อป้องกัน Script ทำงานเกินเวลาสากลครับ`,
+                title: 'จัดสรรปริมาณคิวงานกลุ่มย่อย',
+                html: `คุณเลือกรายชื่อทั้งหมด <b>${selectedCbs.length} รายการ</b> ระบบสถาปัตยกรรมจะแบ่งกลุ่มประมวลผลก้อนแรกจำนวน <b>${CHUNK_SIZE} รายการ</b> เพื่อรักษาความเสถียรสูงสุดให้กับสคริปต์ Google ครับ`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'รันก้อนแรก (40 คน)',
@@ -346,11 +356,11 @@ async function loadParticipantsFromSheet() {
         const courseKey = document.getElementById('certSessionSelect').value;
 
         mainBtn.disabled = true;
-        mainBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> กำลังทำงานตามคิวกลุ่ม...`;
+        mainBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> กำลังประมวลผลคิวงานกลุ่มไฮบริด...`;
 
         Swal.fire({
-            title: `กำลังรันเอกสารผ่านระบบ Google`,
-            html: `ระบบกำลังรันใบประกาศจำนวน <b>${currentBatchCbs.length} รายการ</b><br><small class="text-danger">⚠️ กรุณารอห้ามปิดหรือย้ายหน้าจอไปไหนเด็ดขาด</small>`,
+            title: `กำลังรันใบประกาศส่งเข้าโฟลเดอร์ Google`,
+            html: `ระบบกำลังสั่งออกใบประกาศจำนวน <b>${currentBatchCbs.length} รายการ</b> ในรอบนี้<br><small class="text-danger">⚠️ กรุณารอห้ามปิดหรือย้ายหน้าต่างนี้เด็ดขาด</small>`,
             icon: 'info',
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -365,10 +375,10 @@ async function loadParticipantsFromSheet() {
             const res = await triggerGenSingle(regId, courseKey);
             if (res) {
                 successCount++;
-                cb.checked = false; 
+                cb.checked = false; // ปลดเคลียร์รายการที่สำเร็จออกจากตาราง
             }
             if(i < currentBatchCbs.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 1500)); // หน่วงคิว 1.5 วินาทีป้องกันสแปมเซิร์ฟเวอร์
+                await new Promise(resolve => setTimeout(resolve, 1500)); // ถ่วงน้ำหนักความเร็วระเบิดรอบละ 1.5 วินาที
             }
         }
 
@@ -379,15 +389,15 @@ async function loadParticipantsFromSheet() {
         const remainingTotal = selectedCbs.length - currentBatchCbs.length;
         if (remainingTotal > 0) {
             Swal.fire({
-                title: 'ประมวลผลก้อนแรกสำเร็จ',
-                html: `สร้างใบประกาศเรียบร้อยแล้ว <b>${successCount} รายการ</b><br>เหลือค้างอยู่ในคิวอีก <b>${remainingTotal} รายการ</b> สามารถกดรันก้อนถัดไปได้ทันทีครับ`,
+                title: 'ประมวลผลก้อนแรกเสร็จสิ้น',
+                html: `สร้างไฟล์ PDF สำเร็จแล้ว <b>${successCount} ใบ</b><br>ยังมีคิวค้างอยู่ในตารางอีก <b>${remainingTotal} รายการ</b> สามารถกดสั่งกลุ่มรันเพื่อปฏิบัติการก้อนถัดไปได้ทันทีครับ`,
                 icon: 'success'
             });
         } else {
-            Swal.fire('สำเร็จเสร็จสิ้นทั้งหมด', `ทำการประมวลผลใบประกาศผ่านระบบ Sheets ครบถ้วนแล้วครับช่าง!`, 'success');
+            Swal.fire('ประมวลผลเสร็จสมบูรณ์', `ทำการรันออกใบประกาศนียบัตรสำเร็จครบถ้วนทุกคิวงานแล้วครับช่าง!`, 'success');
         }
         
-        loadParticipantsFromSheet();
+        loadParticipantsForCert(); // รีเฟรชตารางดึงสถานะ badge ล่าสุด
     }
 </script>
 </body>

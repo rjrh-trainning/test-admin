@@ -247,14 +247,14 @@
         // 🎯 บล็อกฟังก์ชันวาดแบบสลักระนาบพิกเซลตรง 1920x1080 (ห้ามเดาสเกลออโต้)
         function drawCanvasContent(imgObj) {
             // 🔥 KEY BUGFIXED: บังคับล็อกสเกล Canvas ให้แมตช์พิกเซลจริงของเทมเพลตต้นฉบับ ป้องกันตัวหนังสือจมดินตกขอบ
-            canvas.width = 1920;
-            canvas.height = 1080;
+            canvas.width = 800;
+            canvas.height = 600;
             
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height); 
             
             // วาดรูปพื้นหลังแบบเต็มความละเอียด
-            ctx.drawImage(imgObj, 0, 0, 1920, 1080); 
+            ctx.drawImage(imgObj, 0, 0, 800, 600); 
 
             let centerX = 1920 / 2;
 

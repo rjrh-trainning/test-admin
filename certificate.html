@@ -245,35 +245,37 @@
         let dateStr = row.training_date || "27/05/2026"; 
 
         // 🎯 บล็อกฟังก์ชันวาดแบบสลักระนาบพิกเซลตรง 1920x1080 (ห้ามเดาสเกลออโต้)
-        function drawCanvasContent(imgObj) {
-            // 🔥 KEY BUGFIXED: บังคับล็อกสเกล Canvas ให้แมตช์พิกเซลจริงของเทมเพลตต้นฉบับ ป้องกันตัวหนังสือจมดินตกขอบ
-            canvas.width = 800;
-            canvas.height = 600;
-            
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height); 
-            
-            // วาดรูปพื้นหลังแบบเต็มความละเอียด
-            ctx.drawImage(imgObj, 0, 0, 800, 600); 
+function drawCanvasContent(imgObj) {
+    // 1. กำหนดขนาด Canvas ใหม่
+    canvas.width = 800;
+    canvas.height = 600;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height); 
+    
+    // 2. วาดรูปพื้นหลังให้เต็มขนาด 800x600
+    ctx.drawImage(imgObj, 0, 0, 800, 600); 
 
-            let centerX = 1920 / 2;
+    // 3. กำหนดจุดกึ่งกลางใหม่ (800 / 2 = 400)
+    let centerX = 400;
 
-            // 🎨 วาดข้อความชื่อ สีดำตัวหนา 65px ขยับลงมาตรงช่องกึ่งกลางพอดีเป๊ะ
-            ctx.font = TEXT_CONFIG.nameFont;
-            ctx.fillStyle = TEXT_CONFIG.nameColor;
-            ctx.textAlign = TEXT_CONFIG.align;
-            ctx.textBaseline = "middle"; 
-            ctx.fillText(fullNameStr, centerX, TEXT_CONFIG.nameYOffset);
+    // 4. วาดชื่อ (ปรับพิกัด Y และขนาดฟอนต์ให้เล็กลงตามสัดส่วน)
+    // จากเดิม Y=650 บน 1080px -> (650/1080) * 600 ≈ 361
+    ctx.font = "bold 30px 'Libre Franklin', sans-serif"; 
+    ctx.fillStyle = TEXT_CONFIG.nameColor;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle"; 
+    ctx.fillText(fullNameStr, centerX, 361);
 
-            // 🎨 วาดข้อความวันที่ สีดำตัวหนา 32px ขยับลงช่องวันที่ด้านล่างพอดีเป๊ะ
-            ctx.font = TEXT_CONFIG.dateFont;
-            ctx.fillStyle = TEXT_CONFIG.dateColor;
-            ctx.textBaseline = "middle"; 
-            ctx.fillText(dateStr, centerX, TEXT_CONFIG.dateYOffset);
+    // 5. วาดวันที่ (จากเดิม Y=825 บน 1080px -> (825/1080) * 600 ≈ 458)
+    ctx.font = "18px 'Libre Franklin', sans-serif";
+    ctx.fillStyle = TEXT_CONFIG.dateColor;
+    ctx.textBaseline = "middle"; 
+    ctx.fillText(dateStr, centerX, 458);
 
-            loader.classList.add('hidden');
-            canvas.classList.remove('hidden');
-        }
+    loader.classList.add('hidden');
+    canvas.classList.remove('hidden');
+}
 
         // 🚀 รันระบบความปลอดภัย ตรวจสอบการดาวน์โหลดฟอนต์และโครงสร้างรูปภาพก่อนเริ่มประทับอักษร
         Promise.all([

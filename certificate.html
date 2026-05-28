@@ -95,7 +95,6 @@
       <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-100">
         <div>
           <h3 class="text-2xl font-extrabold text-slate-800">ตัวอย่างสัดส่วนจัดวางข้อมูลภาพก่อนออกจริง</h3>
-          <p class="text-slate-500 font-medium mt-1">เปรียบเทียบพิกัดตรงตามขนาดภาพจริง 1920x1080 ของเทมเพลตหลัก</p>
         </div>
         <button onclick="closePreviewModal()" class="text-slate-400 hover:text-rose-500 bg-slate-50 hover:bg-rose-50 transition-all duration-200 rounded-xl p-2 active:scale-95">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -118,14 +117,14 @@
 <script>
     const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
     
-    // 🎯 CONFIG: ปรับสเกลขนาดและพิกัดให้สัมพันธ์กับพื้นที่แสดงผล Canvas ขนาด 800x600 พิกเซล
+    // 🎯 CONFIG: ปรับพิกัดชื่อขึ้นใต้ RECOGNIZES และดันพิกัดวันที่ขึ้นตามอัตราส่วนภาพ 800x600 
     const TEXT_CONFIG = {
-      nameFont: "bold 30px 'Franklin Gothic Medium', 'Franklin Gothic', 'Libre Franklin', sans-serif", 
+      nameFont: "bold 28px 'Franklin Gothic Medium', 'Franklin Gothic', 'Libre Franklin', sans-serif", 
       nameColor: "#1c140e",            
-      nameYOffset: 361, 
-      dateFont: "18px 'Libre Franklin', sans-serif", 
+      nameYOffset: 318, // ⭐️ ย้ายพิกัดขึ้นมาอยู่ใต้ RECOGNIZES (สัดส่วนเดิมเทียบเท่า ~572px)
+      dateFont: "16px 'Libre Franklin', sans-serif", 
       dateColor: "#1c140e", 
-      dateYOffset: 458, 
+      dateYOffset: 430, // ⭐️ ย้ายพิกัดขึ้นมาพ้นกรอบโลโก้และตราประทับด้านล่าง
       align: "center",             
       xOffset: 400 
     };
@@ -145,7 +144,6 @@
         preloadedTemplateImage.crossOrigin = "Anonymous";
         preloadedTemplateImage.src = TEMPLATE_IMAGE_URL; 
         
-        // สั่งเบราว์เซอร์ดาวน์โหลดโครงสร้างฟอนต์สากล Libre Franklin เตรียมพร้อมทันที
         document.fonts.load(TEXT_CONFIG.nameFont);
         document.fonts.load(TEXT_CONFIG.dateFont);
     }
@@ -225,7 +223,6 @@
         });
     }
 
-    // ⚡ ฟังก์ชันเรนเดอร์พรีวิวอุดรอยบัคสเกลเพลี้ยน
     function fetchTextAndPreviewFast(index) {
         const row = localQueueData[index];
         if (!row) {
@@ -244,7 +241,6 @@
         let fullNameStr = row.full_name_en || "ไม่ระบุชื่อ";
         let dateStr = row.training_date || "27/05/2026"; 
 
-        // 🎯 บล็อกฟังก์ชันวาดแบบสลักระนาบพิกเซลตรง 800x600 ดึงค่าตามระนาบ TEXT_CONFIG
         function drawCanvasContent(imgObj) {
             canvas.width = 800;
             canvas.height = 600;
@@ -252,10 +248,8 @@
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height); 
             
-            // วาดรูปพื้นหลังให้เต็มขนาดคุมงานพรีวิวเล็กลง
             ctx.drawImage(imgObj, 0, 0, 800, 600); 
 
-            // นำระนาบและการจัดเรียงจาก TEXT_CONFIG มาประทับอักษรโดยตรงเพื่อลด Hardcode ในส่วนกลาง
             ctx.textAlign = TEXT_CONFIG.align;
             ctx.textBaseline = "middle"; 
 
@@ -273,7 +267,6 @@
             canvas.classList.remove('hidden');
         }
 
-        // 🚀 รันระบบความปลอดภัย ตรวจสอบการดาวน์โหลดฟอนต์และโครงสร้างรูปภาพก่อนเริ่มประทับอักษร
         Promise.all([
             document.fonts.load(TEXT_CONFIG.nameFont),
             document.fonts.load(TEXT_CONFIG.dateFont)
@@ -296,7 +289,7 @@
 
     function toggleSelectAll(master) {
         const checkboxes = document.querySelectorAll('.row-select');
-        checkbox.forEach(cb => cb.checked = master.checked);
+        checkboxes.forEach(cb => cb.checked = master.checked);
         updateBatchUI();
     }
 

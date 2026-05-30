@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Check-In System - RJRH TRAINING CENTER</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2=family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { --primary: #071f54; --accent: #1976d2; }
@@ -208,14 +208,12 @@
                             <small class="text-muted ms-auto">ID: ${user.id}</small>
                         </div>`;
 
-                // 🎯 เพิ่มการดักจับเงื่อนไข: หากอยู่ในโหมดเช็คอิน (IN) แล้วผู้เรียน "เช็คอินไปแล้ว" ให้ทำลายปุ่มทิ้งและแสดงข้อความแจ้งเตือนแทน
                 if (selectedMode === "IN" && user.is_checked_in) {
                     htmlContent += `
                         <div class="alert alert-success border-success text-center mb-0 mt-3 py-2 fw-bold small">
                             <i class="fas fa-check-circle me-1"></i> ท่านได้เช็คอินในหลักสูตรนี้เรียบร้อยแล้ว
                         </div>`;
                 } 
-                // 🎯 กรณีปกติ: แสดงปุ่มตามโหมดงานที่เลือก
                 else {
                     let btnColor = selectedMode === 'IN' ? 'btn-success' : 'btn-warning';
                     let btnText = selectedMode === 'IN' ? 'บันทึกเช็คอินคอร์สนี้' : 'ยกเลิกเช็คอินคอร์สนี้';
@@ -268,12 +266,15 @@
                 if (updateError) throw updateError;
 
                 let finalFullNameEn = user.full_name_en ? String(user.full_name_en).trim() : "";
+                
+                // 🛠️ [จุดแก้ไขหลัก] เพิ่มการส่งฟิลด์ training_date เพื่อให้ผ่านเงื่อนไข NOT NULL ของตารางใหม่
                 const { error: queueError } = await supabaseClient
                     .from('certificates_queue')
                     .insert([{
                         registration_id: String(user.id).trim(),
                         course_key: String(user.course_key).trim(),
                         full_name_en: finalFullNameEn,
+                        training_date: String(user.session_info.date).trim(), // ดึงวันที่จากข้อมูลรอบอบรมมารวมส่ง
                         pdf_status: "คิวว่าง"
                     }]);
                 if (queueError) throw queueError;
@@ -294,7 +295,6 @@
                     console.error("GAS Sync Error:", gasErr);
                 }
 
-                // สแตมป์สถานะล็อกความสำเร็จทันทีหลังบันทึก
                 courseCard.innerHTML = `
                     <div class="alert alert-success border-success text-center mb-0 py-3 fw-bold">
                         <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จแล้ว!
@@ -308,12 +308,13 @@
                     .eq('id', user.id);
                 if (updateError) throw updateError;
                 
-                await supabaseClient
+                const { error: deleteError } = await supabaseClient
                     .from('certificates_queue')
                     .delete()
-                    .eq('registration_id', String(user.id).trim());
+                    .eq('registration_id', String(user.id).trim())
+                    .eq('course_key', String(user.course_key).trim()); // ควรกำหนดคอร์สคู่กันเพื่อไม่ให้เผลอลบวิชาอื่นของนักเรียนรายนี้
+                if (deleteError) throw deleteError;
 
-                // สแตมป์สถานะเมื่อกดยกเลิกสิทธิ์
                 courseCard.innerHTML = `
                     <div class="alert alert-warning border-warning text-center mb-0 py-3 fw-bold">
                         <i class="fas fa-minus-circle me-1"></i> ยกเลิกสิทธิ์หลักสูตร [${user.course_key}] เรียบร้อย

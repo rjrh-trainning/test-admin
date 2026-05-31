@@ -120,10 +120,7 @@
 <script src="config.js"></script>
 
 <script>
-    // 🎯 โยกย้าย URL ของระบบส่งคำสั่งมาที่ชุดลิ้งค์ GAS Web App ตัวใหม่ของ BLS
-    const CERT_BLS_API = "https://script.google.com/macros/s/AKfycbxeH8fwOwWeOh83K5zORNVtq5O1ZnNLZDAB79Ic2wyJWZjWRK9frNkD6_dRs_jl6gNVoA/exec";
-    
-    // 🎨 บล็อกตั้งค่าความกว้างตำแหน่งของตัวอักษรบน Canvas พรีวิว
+    // 🎨 บล็อกตั้งค่าพิกัดความกว้างตำแหน่งของตัวอักษรบน Canvas พรีวิว
     const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
     
     const TEXT_CONFIG = {
@@ -142,7 +139,8 @@
     let localQueueData = [];
     let preloadedTemplateImage = null;
 
-    window.addEventListener('DOMContentLoaded', async () => {
+    // 🕒 แก้ไขปัญหาเรื่องการ Sync ลำดับการรัน: รอให้ระบบวินโดว์และ config.js โหลดตัวแปรสำเร็จก่อนเรียกใช้งานฐานข้อมูล
+    window.addEventListener('load', async () => {
         if (typeof checkAuthGuard === 'function') { await checkAuthGuard(); }
         loadSessions();
         preloadTemplate(); 
@@ -157,13 +155,17 @@
     }
 
     async function loadSessions() {
+        if (!supabaseClient) {
+            console.error("Supabase client is not initialized yet.");
+            return;
+        }
         const sel = document.getElementById('certSessionSelect');
         const { data: sessions, error } = await supabaseClient.from('sessions').select('*').order('id', { ascending: true });
         if (error) return;
         sel.innerHTML = '<option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>';
         sessions.forEach(s => { 
-            // เปลี่ยนมาคัดกรองกรองแสดงผลเฉพาะรหัสรอบคอร์สที่ขึ้นต้นด้วย BLS
-            if(s.course_key.startsWith('BLS')) {
+            // คัดกรองกรองแสดงผลเฉพาะรหัสรอบคอร์สที่ขึ้นต้นด้วย BLS
+            if(s.course_key && s.course_key.startsWith('BLS')) {
                 sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name}</option>`; 
             }
         });
@@ -317,7 +319,7 @@
         let targetFolderId = FOLDER_CONFIG[courseKey] || FOLDER_CONFIG["BLS"]; 
 
         try {
-            // เรียกใช้ข้ามไปยัง API สิทธิ์จัดการฝั่ง GAS Web App ตัวใหม่ของ BLS
+            // ดึงค่า CERT_BLS_API ตัวแปรศูนย์กลางที่อยู่ใน config.js มาใช้โดยตรง ไม่ประกาศซ้ำ
             const response = await fetch(CERT_BLS_API, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },

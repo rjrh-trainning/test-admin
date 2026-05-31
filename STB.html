@@ -120,7 +120,6 @@
 <script src="config.js"></script>
 
 <script>
-    // 🎯 CONFIG: ปรับพิกัดแม่แบบเฉพาะของ STB
     const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
     
     const TEXT_CONFIG = {
@@ -152,15 +151,18 @@
         document.fonts.load(TEXT_CONFIG.dateFont);
     }
 
+    /* 🛠️ อัพเดทฟังก์ชันนี้ให้ผูกวันที่เข้าท้ายชื่อรอบอบรมของ STB */
     async function loadSessions() {
         const sel = document.getElementById('certSessionSelect');
         const { data: sessions, error } = await supabaseClient.from('sessions').select('*').order('id', { ascending: true });
         if (error) return;
         sel.innerHTML = '<option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>';
         sessions.forEach(s => { 
-            // คัดกรองกรองแสดงผลเฉพาะคีย์ที่ขึ้นต้นด้วย STB เท่านั้น
-            if(s.course_key.startsWith('STB')) {
-                sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name}</option>`; 
+            if(s.course_key && s.course_key.startsWith('STB')) {
+                // ค้นหาฟิลด์วันที่จากออบเจกต์ session
+                let sessionDate = s.training_date || s.date || "ไม่ระบุวันที่";
+                // แสดงผลลัพธ์แบบระบุวันที่ต่อท้าย เช่น [STB-01] Course Name (27/05/2026)
+                sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name} (${sessionDate})</option>`; 
             }
         });
     }
@@ -313,7 +315,6 @@
         let targetFolderId = FOLDER_CONFIG[courseKey] || FOLDER_CONFIG["STB"]; 
 
         try {
-            // ใช้ CERT_STB_API สำหรับคิวงานกลุ่ม STB
             const response = await fetch(CERT_STB_API, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },

@@ -122,7 +122,6 @@
 <script src="config.js"></script>
 
 <script>
-    // 🎨 บล็อกตั้งค่าพิกัดความกว้างตำแหน่งและฟอนต์ Merriweather บน Canvas พรีวิว
     const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/BLS%20V.Eng2.png"; 
     
     const TEXT_CONFIG = {
@@ -162,6 +161,7 @@
         document.fonts.load(TEXT_CONFIG.certNoFont);
     }
 
+    /* 🛠️ แก้ไขฟังก์ชันนี้เพื่อแสดงวันที่ระบุบนปุ่ม Dropdown */
     async function loadSessions() {
         if (!supabaseClient) {
             console.error("Supabase client is not initialized yet.");
@@ -173,7 +173,9 @@
         sel.innerHTML = '<option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>';
         sessions.forEach(s => { 
             if(s.course_key && s.course_key.startsWith('BLS')) {
-                sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name}</option>`; 
+                // ดึงฟิลด์วันที่มาต่อท้ายข้อความ (หากชื่อฟิลด์ในตารางไม่ใช่ training_date ให้แก้ไขตรงนี้ครับ)
+                let sessionDate = s.training_date || s.date || "ไม่ระบุวันที่";
+                sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name} (${sessionDate})</option>`; 
             }
         });
     }

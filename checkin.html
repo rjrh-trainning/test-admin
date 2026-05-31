@@ -69,7 +69,8 @@
     let isProcessing = false;
     let fetchedRecords = []; 
 
-    const CHECKIN_API_URL = "https://script.google.com/macros/s/AKfycbwXHtjumpXQ8MxoUuQ6bq-oNWeSgD0a9gV0A8IOncDSIggGEKXSaab1JxmWqfL4qgmq/exec";
+    // 🔄 ดึงค่าจาก GOOGLE_SHEET_API ใน config.js มาใช้เป็นจุดรับข้อมูลเช็คอินหลักหลัก
+    const CHECKIN_API_URL = typeof GOOGLE_SHEET_API !== 'undefined' ? GOOGLE_SHEET_API : "https://script.google.com/macros/s/AKfycbw1bS3fjGQngjLdKssc8yWzmbQ1gKOvTvUxraCU2eIHNxjvyyAj3iIqGcey_ETZK3pk/exec";
 
     window.addEventListener('DOMContentLoaded', async () => {
         if (typeof checkAuthGuard === 'function') {
@@ -283,15 +284,18 @@
         try {
             let nowTime = new Date().toISOString();
 
+            // ==========================================
+            // ☀️ [โหมดเช็คอิน - IN]: เพิ่มคิวใบเซอร์ + ลงชีตลงทะเบียนหลัก
+            // ==========================================
             if (selectedMode === "IN") {
-                // 1. อัปเดตสถานะเช็คอินของตารางหลัก (registrations)
+                // 1. อัปเดตสถานะเช็คอินของตารางหลัก (registrations) ใน Supabase
                 const { error: updateError } = await supabaseClient
                     .from('registrations')
                     .update({ is_checked_in: true, checked_in_at: nowTime })
                     .eq('id', user.id);
                 if (updateError) throw updateError;
 
-                // 2. จัดรูปแบบวันที่และข้อมูล เพื่อยิงเข้าตารางคิวใบเซอร์ (certificates_queue)
+                // 2. จัดรูปแบบวันที่และข้อมูล เพื่อส่งเข้าตารางคิวใบประกาศ (certificates_queue)
                 let finalFullNameEn = user.full_name_en ? String(user.full_name_en).trim() : "";
                 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                 const d = new Date();
@@ -308,7 +312,7 @@
                     }]);
                 if (queueError) throw queueError;
 
-                // 3. ส่งข้อมูลเช็คอินไปอัปเดตที่ Google Sheets
+                // 3. ส่งข้อมูลเช็คอินไปอัปเดตที่ตารางหลัก Google Sheets
                 try {
                     await fetch(CHECKIN_API_URL, {
                         method: 'POST',
@@ -325,22 +329,28 @@
                 // 4. เปลี่ยน UI แสดงสถานะความสำเร็จบนหน้าจอ
                 courseCard.innerHTML = `
                     <div class="alert alert-success border-success text-center mb-0 py-3 fw-bold">
-                        <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จ! ข้อมูลถูกส่งเข้าคิวพิมพ์ใบประกาศแล้ว
+                        <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จ! ส่งข้อมูลเข้าคิวเตรียมพิมพ์ใบประกาศแล้ว
                     </div>`;
 
                 user.is_checked_in = true;
 
-            } else {
-                // 1. โหมด OUT: อัปเดตสถานะเช็คเอาท์ที่ตารางหลัก (registrations) เท่านั้น
-                const { error: updateError } = await supabaseClient
-                    .from('registrations')
-                    .update({ is_checked_out: true, checked_out_at: nowTime })
-                    .eq('id', user.id);
-                if (updateError) throw updateError;
+            } 
+            // ==========================================
+            // 🌙 [โหมดเช็คเอาท์ - OUT]: แยกยิงตามชนิดหลักสูตรเพื่อสั่งสร้าง PDF
+            // ==========================================
+            else {
+                // 1. เลือกลิงก์ปลายทางที่จะส่งข้อมูลไปสั่งสร้าง PDF แยกตามชนิดคอร์ส
+                let targetCertApi = typeof CERT_STB_API !== 'undefined' ? CERT_STB_API : CHECKIN_API_URL;
+                const currentCourseKeyUpper = String(user.course_key).toUpperCase();
+                
+                // คัดกรองเงื่อนไข: หากพบคีย์คำว่า BLS ให้เบนสายไปเรียก API เจนเซอร์ของ BLS ทันที
+                if (currentCourseKeyUpper.includes("BLS") && typeof CERT_BLS_API !== 'undefined') {
+                    targetCertApi = CERT_BLS_API;
+                }
 
-                // 2. ส่งคำสั่งแจ้งเตือนระบบ Google Apps Script ว่าคนนี้พร้อมสั่งสร้าง PDF แล้ว (ไม่มีการเขียนข้อมูลลงคิวซ้ำ)
+                // 2. สั่งการแจ้งเตือนไปยัง API ของหลักสูตรนั้น เพื่อเริ่มดำเนินกระบวนการเจนไฟล์ PDF
                 try {
-                    await fetch(CHECKIN_API_URL, {
+                    await fetch(targetCertApi, {
                         method: 'POST',
                         mode: 'no-cors', 
                         headers: { 'Content-Type': 'text/plain' },
@@ -350,10 +360,10 @@
                             course_key: String(user.course_key).trim()
                         })
                     });
-                    console.log(`GAS Sync Checkout Success for Course Key: ${user.course_key}`);
-                } catch(gasErr) { console.error("GAS Sync Error:", gasErr); }
+                    console.log(`[ระบบแยกคอร์ส] ส่งคำสั่งเช็คเอาท์ไปยัง API ของหลักสูตร: ${user.course_key}`);
+                } catch(gasErr) { console.error("Cert Generation Routing Error:", gasErr); }
 
-                // 3. เปลี่ยน UI แสดงผลสำเร็จ
+                // 3. เปลี่ยนแปลง UI บนหน้าจอแอปพลิเคชัน
                 courseCard.innerHTML = `
                     <div class="alert alert-info border-info text-center mb-0 py-3 fw-bold">
                         <i class="fas fa-graduation-cap me-1"></i> สั่งพิมพ์ใบประกาศสำหรับหลักสูตร [${user.course_key}] สำเร็จแล้ว!

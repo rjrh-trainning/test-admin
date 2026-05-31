@@ -58,28 +58,38 @@
 
 <script>
     window.addEventListener('DOMContentLoaded', async () => {
-        await checkAuthGuard();
+        if (typeof checkAuthGuard === 'function') { await checkAuthGuard(); }
         loadSessionsForReport();
     });
 
+    // 🌟 แก้ไข: แมปให้ Dropdown เก็บค่าเป็น s.id (เลขไอดีรอบ) แทนที่จะเก็บเป็นข้อความ key ซ้ำๆ
     async function loadSessionsForReport() {
         const sel = document.getElementById('reportSessionSelect');
         const { data: sessions, error } = await supabaseClient.from('sessions').select('*').order('id', { ascending: true });
         if (error) return;
         sel.innerHTML = '<option value="">-- เลือกรอบอบรม --</option>';
-        sessions.forEach(s => { sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name} [${s.date}]</option>`; });
+        sessions.forEach(s => { 
+            let sessionDate = s.training_date || s.date || "ไม่ระบุวันที่";
+            sel.innerHTML += `<option value="${s.id}">[${s.course_key}] ${s.name} (${sessionDate})</option>`; 
+        });
     }
 
+    // 🌟 แก้ไข: เปลี่ยนไปฟิลเตอร์ค้นหาด้วย 'session_id' ป้องกันรายชื่อแสดงผลปนกันมั่วทุกลิสต์
     async function loadParticipants() {
-        const courseKey = document.getElementById('reportSessionSelect').value; if(!courseKey) return;
+        const sessionId = document.getElementById('reportSessionSelect').value; if(!sessionId) return;
         const tbody = document.getElementById('participantList'); 
         tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">กำลังดึงข้อมูลรายชื่อจากคอมพิวเตอร์แม่ข่าย...</td></tr>';
         
-        const { data: list, error } = await supabaseClient.from('registrations').select('*').eq('course_key', courseKey).order('created_at', { ascending: true });
+        const { data: list, error } = await supabaseClient
+            .from('registrations')
+            .select('*')
+            .eq('session_id', sessionId)
+            .order('created_at', { ascending: true });
+            
         if(error) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">ดึงข้อมูลล้มเหลว</td></tr>'; return; }
         
         tbody.innerHTML = '';
-        if(list.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">คอร์สนี้ยังไม่มีผู้ลงทะเบียน</td></tr>'; return; }
+        if(list.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">รอบอบรมนี้ยังไม่มีผู้ลงทะเบียน</td></tr>'; return; }
 
         list.forEach((row, index) => {
             const status = row.is_checked_in ? '<span class="badge bg-success"><i class="fas fa-check me-1"></i>รายงานตัวแล้ว</span>' : '<span class="badge bg-secondary">ยังไม่แสดงตัว</span>';
@@ -91,7 +101,7 @@
             tbody.innerHTML += `
                 <tr>
                     <td class="text-center fw-bold text-muted">${index + 1}</td>
-                    <td><b>${row.full_name_th}</b><br><small class="text-muted">${prefixStr}${row.full_name_en}</small></td>
+                    <td><b>${row.full_name_th || ''}</b><br><small class="text-muted">${prefixStr}${row.full_name_en || ''}</small></td>
                     <td class="text-center"><code>${row.id}</code></td>
                     <td class="text-center">${photoConsentStatus}</td>
                     <td class="text-center">${status}</td>

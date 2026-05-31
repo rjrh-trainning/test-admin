@@ -121,7 +121,7 @@
 
 <script>
     // 🎨 บล็อกตั้งค่าพิกัดความกว้างตำแหน่งของตัวอักษรบน Canvas พรีวิว
-    const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/Ins.Chaichana.png"; 
+    const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/BLS%20V.Eng2.png"; 
     
     const TEXT_CONFIG = {
       nameFont: "bold 28px 'Franklin Gothic Medium', 'Franklin Gothic', 'Libre Franklin', sans-serif", 
@@ -130,6 +130,13 @@
       dateFont: "16px 'Libre Franklin', sans-serif", 
       dateColor: "#1c140e", 
       dateYOffset: 380, 
+      
+      // 💡 [ส่วนที่เพิ่มใหม่] ตั้งค่า Font พิกัด และสี ของเลขที่ใบประกาศบน Canvas พรีวิว
+      certNoFont: "bold 14px 'Libre Franklin', sans-serif",
+      certNoColor: "#d97706", // สีน้ำตาลส้มเหลือง (Amber) เพื่อให้เห็นเด่นแยกจากฟิลด์อื่นตอนรีวิว
+      certNoXOffset: 120,     // พิกัดแนวแกน X สำหรับชิดซ้าย หรือตรงจุดที่สลักเลขประกาศ
+      certNoYOffset: 45,      // พิกัดแนวแกน Y ด้านบนของขอบใบประกาศ
+      
       align: "center",             
       xOffset: 400 
     };
@@ -152,6 +159,7 @@
         preloadedTemplateImage.src = TEMPLATE_IMAGE_URL; 
         document.fonts.load(TEXT_CONFIG.nameFont);
         document.fonts.load(TEXT_CONFIG.dateFont);
+        document.fonts.load(TEXT_CONFIG.certNoFont);
     }
 
     async function loadSessions() {
@@ -250,6 +258,15 @@
 
         let fullNameStr = row.full_name_en || "ไม่ระบุชื่อ";
         let dateStr = row.training_date || "31/05/2026"; 
+        
+        // 🕒คำนวณจำลองเลขเซอร์เสมือนจริง: ดึง cer_no เดิมที่มีในระบบ หรือหากไม่มีให้ Mock ลำดับขึ้นมาโชว์เผื่อไว้
+        let certNoStr = row.cer_no;
+        if (!certNoStr) {
+            const today = new Date();
+            const yyMmDd = today.toISOString().slice(2,10).replace(/-/g,''); // ผลลัพธ์ YYMMDD ณ วันที่กดพรีวิว
+            const mockSeq = String(index + 1).padStart(3, '0');
+            certNoStr = `${row.course_key || 'BLS'}-${yyMmDd}${mockSeq}`;
+        }
 
         function drawCanvasContent(imgObj) {
             canvas.width = 800;
@@ -258,16 +275,23 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height); 
             ctx.drawImage(imgObj, 0, 0, 800, 600); 
 
+            // วาดจุดที่ 1: ชื่อ-นามสกุล
             ctx.textAlign = TEXT_CONFIG.align;
             ctx.textBaseline = "middle"; 
-
             ctx.font = TEXT_CONFIG.nameFont;
             ctx.fillStyle = TEXT_CONFIG.nameColor;
             ctx.fillText(fullNameStr, TEXT_CONFIG.xOffset, TEXT_CONFIG.nameYOffset);
 
+            // วาดจุดที่ 2: วันที่อบรม
             ctx.font = TEXT_CONFIG.dateFont;
             ctx.fillStyle = TEXT_CONFIG.dateColor;
             ctx.fillText(dateStr, TEXT_CONFIG.xOffset, TEXT_CONFIG.dateYOffset);
+
+            // 💡 วาดจุดที่ 3: สลักเลขที่ใบประกาศลงบน Canvas พรีวิว (ช่างปรับแก้พิกัด xOffset/yOffset หรือจัดชิดซ้ายขวาได้ตามดีไซน์ใบจริงเลยครับ)
+            ctx.font = TEXT_CONFIG.certNoFont;
+            ctx.fillStyle = TEXT_CONFIG.certNoColor;
+            ctx.textAlign = "left"; // ปรับเป็นชิดซ้ายสำหรับรันฟิลด์หมายเลขเอกสาร
+            ctx.fillText("Certificate No: " + certNoStr, TEXT_CONFIG.certNoXOffset, TEXT_CONFIG.certNoYOffset);
 
             loader.classList.add('hidden');
             canvas.classList.remove('hidden');
@@ -319,7 +343,6 @@
         let targetFolderId = FOLDER_CONFIG[courseKey] || FOLDER_CONFIG["BLS"]; 
 
         try {
-            // ดึงค่า CERT_BLS_API ตัวแปรศูนย์กลางที่อยู่ใน config.js มาใช้โดยตรง ไม่ประกาศซ้ำ
             const response = await fetch(CERT_BLS_API, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },

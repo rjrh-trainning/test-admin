@@ -9,6 +9,7 @@ const GOOGLE_SHEET_API = "https://script.google.com/macros/s/AKfycbw1bS3fjGQngjL
 const MAIN_REG_API_URL = GOOGLE_SHEET_API; // 🛠️ เสริมตัวแปรนี้เข้ามาเพื่อรองรับโค้ดเก่าใน checkin.html ไม่ให้หลุดโฟลว์
 
 const CERT_STB_API = "https://script.google.com/macros/s/AKfycby0ebBHlmguiJX9RYqX7cBhKV7Cni42Xn6IsJfbjvS2EIZFrBJpu31fI2gQ2Xm5cOEh/exec";
+const CERT_BLS_API = "https://script.google.com/macros/s/AKfycbxeH8fwOwWeOh83K5zORNVtq5O1ZnNLZDAB79Ic2wyJWZjWRK9frNkD6_dRs_jl6gNVoA/exec";
 
 // ประกาศตัวแปรเซสชันเพื่อให้เรียกใช้ร่วมกันได้ง่าย
 let supabaseClient;

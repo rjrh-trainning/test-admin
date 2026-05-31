@@ -108,27 +108,71 @@
             Swal.fire('สำเร็จ', 'เปิดรอบฝึกอบรมเรียบร้อย', 'success');
             document.getElementById('newSessionName').value = ''; document.getElementById('newSessionDate').value = ''; document.getElementById('newSessionMax').value = ''; 
             loadConfig(); 
-        } catch (err) { Swal.fire('ข้อผิดพลาด', 'ล้มเหลวในการเชื่อมต่อเซิร์ฟเวอร์', 'error'); }
+        } catch (err) { 
+            console.error(err);
+            Swal.fire('ข้อผิดพลาด', `ล้มเหลวในการเชื่อมต่อเซิร์ฟเวอร์: ${err.message || ''}`, 'error'); 
+        }
         finally { btn.disabled = false; btn.innerHTML = 'เพิ่ม'; }
     }
 
     async function updateSeatsQuota(id) {
         const newMax = parseInt(document.getElementById(`max_${id}`).value);
+        if (isNaN(newMax) || newMax < 1) {
+            Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณาระบุโควตาที่นั่งให้ถูกต้อง', 'warning');
+            return;
+        }
+
         try {
-            const { data: sessionInfo } = await supabaseClient.from('sessions').select('course_key').eq('id', id).single();
-            const { count } = await supabaseClient.from('registrations').select('*', { count: 'exact', head: true }).eq('course_key', sessionInfo.course_key);
-            await supabaseClient.from('sessions').update({ max_seats: newMax, available_seats: newMax - count }).eq('id', id);
-            Swal.fire('สำเร็จ', 'ปรับโควตาเรียบร้อย', 'success'); loadConfig();
-        } catch(e) { Swal.fire('ข้อผิดพลาด', 'อัปเดตไม่สำเร็จ', 'error'); }
+            // 🎯 เปลี่ยนมานับยอดผู้สมัครโดยกรองผ่านคอลัมน์ session_id (ซึ่งก็คือ id ตัวแปรที่ส่งเข้ามา)
+            const { count, error: countError } = await supabaseClient
+                .from('registrations')
+                .select('*', { count: 'exact', head: true })
+                .eq('session_id', id);
+
+            if (countError) throw countError;
+
+            const registeredCount = count || 0;
+            const newAvailable = newMax - registeredCount;
+
+            // อัปเดตข้อมูลโควตาใหม่และจำนวนที่นั่งคงเหลือกลับไปที่ตาราง sessions
+            const { error: updateError } = await supabaseClient
+                .from('sessions')
+                .update({ max_seats: newMax, available_seats: newAvailable })
+                .eq('id', id);
+
+            if (updateError) throw updateError;
+
+            Swal.fire('สำเร็จ', 'ปรับโควตาเรียบร้อย', 'success'); 
+            loadConfig();
+        } catch(e) { 
+            console.error(e);
+            Swal.fire('ข้อผิดพลาด', `อัปเดตไม่สำเร็จ: ${e.message}`, 'error'); 
+        }
     }
 
     async function toggleSessionStatus(id, newStatus) { 
-        await supabaseClient.from('sessions').update({ status: newStatus }).eq('id', id); loadConfig(); 
+        try {
+            const { error } = await supabaseClient.from('sessions').update({ status: newStatus }).eq('id', id); 
+            if (error) throw error;
+            loadConfig(); 
+        } catch (e) {
+            console.error(e);
+            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเปลี่ยนสถานะได้', 'error');
+        }
     }
 
     async function deleteSessionData(id, name) { 
         const res = await Swal.fire({ title: 'ยืนยันการลบ?', html: `ต้องการลบ <b>"${name}"</b> ใช่ไหม? รายชื่อจะหายหมด!`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33' }); 
-        if (res.isConfirmed) { await supabaseClient.from('sessions').delete().eq('id', id); loadConfig(); } 
+        if (res.isConfirmed) { 
+            try {
+                const { error } = await supabaseClient.from('sessions').delete().eq('id', id); 
+                if (error) throw error;
+                loadConfig(); 
+            } catch (e) {
+                console.error(e);
+                Swal.fire('ข้อผิดพลาด', 'ไม่สามารถลบข้อมูลได้', 'error');
+            }
+        } 
     }
 </script>
 </body>

@@ -17,6 +17,9 @@
         .course-badge { font-size: 0.85rem; padding: 6px 12px; border-radius: 8px; }
         .bg-light-success { background-color: #e8f5e9; }
         .bg-light-info { background-color: #e3f2fd; }
+        /* สไตล์ปุ่มพิมพ์ใบประกาศให้สวยงามและเด่นชัดตามภาพบรีฟ */
+        .btn-print-cert { background-color: #00cae3; color: #fff; border: none; transition: all 0.3s; }
+        .btn-print-cert:hover { background-color: #00b2c9; color: #fff; transform: translateY(-1px); }
     </style>
 </head>
 <body>
@@ -69,7 +72,6 @@
     let isProcessing = false;
     let fetchedRecords = []; 
 
-    // 🔄 ดึงค่าจาก GOOGLE_SHEET_API ใน config.js มาใช้เป็นจุดรับข้อมูลเช็คอินหลักหลัก
     const CHECKIN_API_URL = typeof GOOGLE_SHEET_API !== 'undefined' ? GOOGLE_SHEET_API : "https://script.google.com/macros/s/AKfycbw1bS3fjGQngjLdKssc8yWzmbQ1gKOvTvUxraCU2eIHNxjvyyAj3iIqGcey_ETZK3pk/exec";
 
     window.addEventListener('DOMContentLoaded', async () => {
@@ -241,9 +243,10 @@
                                 <i class="fas fa-certificate me-1"></i> เช็คเอาท์รับวุฒิบัตรเรียบร้อยแล้ว
                             </div>`;
                     } else {
+                        // ปรับดีไซน์ปุ่มสั่งพิมพ์ใบประกาศให้เป็นสีฟ้าสดใสตามตัวอย่าง UI ของคุณ
                         htmlContent += `
-                            <button class="btn btn-info btn-sm text-white w-100 fw-bold mt-3 py-2 shadow-sm" id="btn-action-${index}" onclick="commitCheckInSpecific(${index}, 'OUT')">
-                                <i class="fas fa-graduation-cap me-1"></i> สั่งพิมพ์ใบประกาศสำหรับคอร์สนี้
+                            <button class="btn btn-print-cert btn-sm w-100 fw-bold mt-3 py-2.5 shadow-sm" id="btn-action-${index}" onclick="commitCheckInSpecific(${index}, 'OUT')">
+                                <i class="fas fa-print me-1"></i> สั่งพิมพ์ใบประกาศสำหรับคอร์สนี้
                             </button>`;
                     }
                 }
@@ -260,6 +263,9 @@
         } catch (e) {
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = `<div class="alert alert-danger text-center fw-bold py-3 mb-0"><i class="fas fa-times-circle me-2"></i>${e.message}</div>`;
+        } catch (err) {
+            if(btnManual) btnManual.disabled = false;
+            isProcessing = false; 
         } finally { 
             document.getElementById('searchLoader').style.display = 'none';
             if(btnManual) btnManual.disabled = false;
@@ -285,17 +291,15 @@
             let nowTime = new Date().toISOString();
 
             // ==========================================
-            // ☀️ [โหมดเช็คอิน - IN]: เพิ่มคิวใบเซอร์ + ลงชีตลงทะเบียนหลัก
+            // ☀️ [โหมดเช็คอิน - IN]: เพิ่มคิวใบเซอร์ + ลงชีตหลัก
             // ==========================================
             if (selectedMode === "IN") {
-                // 1. อัปเดตสถานะเช็คอินของตารางหลัก (registrations) ใน Supabase
                 const { error: updateError } = await supabaseClient
                     .from('registrations')
                     .update({ is_checked_in: true, checked_in_at: nowTime })
                     .eq('id', user.id);
                 if (updateError) throw updateError;
 
-                // 2. จัดรูปแบบวันที่และข้อมูล เพื่อส่งเข้าตารางคิวใบประกาศ (certificates_queue)
                 let finalFullNameEn = user.full_name_en ? String(user.full_name_en).trim() : "";
                 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                 const d = new Date();
@@ -312,7 +316,6 @@
                     }]);
                 if (queueError) throw queueError;
 
-                // 3. ส่งข้อมูลเช็คอินไปอัปเดตที่ตารางหลัก Google Sheets
                 try {
                     await fetch(CHECKIN_API_URL, {
                         method: 'POST',
@@ -326,58 +329,76 @@
                     });
                 } catch(gasErr) { console.error("GAS Sync Error:", gasErr); }
 
-                // 4. เปลี่ยน UI แสดงสถานะความสำเร็จบนหน้าจอ
                 courseCard.innerHTML = `
                     <div class="alert alert-success border-success text-center mb-0 py-3 fw-bold">
                         <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จ! ส่งข้อมูลเข้าคิวเตรียมพิมพ์ใบประกาศแล้ว
                     </div>`;
 
                 user.is_checked_in = true;
-
+                isProcessing = false;
             } 
             // ==========================================
-            // 🌙 [โหมดเช็คเอาท์ - OUT]: แยกยิงตามชนิดหลักสูตรเพื่อสั่งสร้าง PDF
+            // 🌙 [โหมดเช็คเอาท์ - OUT]: แก้ไขปัญหาเปิดไฟล์ PDF
             // ==========================================
             else {
-                // 1. เลือกลิงก์ปลายทางที่จะส่งข้อมูลไปสั่งสร้าง PDF แยกตามชนิดคอร์ส
                 let targetCertApi = typeof CERT_STB_API !== 'undefined' ? CERT_STB_API : CHECKIN_API_URL;
                 const currentCourseKeyUpper = String(user.course_key).toUpperCase();
                 
-                // คัดกรองเงื่อนไข: หากพบคีย์คำว่า BLS ให้เบนสายไปเรียก API เจนเซอร์ของ BLS ทันที
                 if (currentCourseKeyUpper.includes("BLS") && typeof CERT_BLS_API !== 'undefined') {
                     targetCertApi = CERT_BLS_API;
                 }
 
-                // 2. สั่งการแจ้งเตือนไปยัง API ของหลักสูตรนั้น เพื่อเริ่มดำเนินกระบวนการเจนไฟล์ PDF
-                try {
-                    await fetch(targetCertApi, {
-                        method: 'POST',
-                        mode: 'no-cors', 
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify({
-                            action: "checkOutSuccess",
-                            id: String(user.id).trim(),
-                            course_key: String(user.course_key).trim()
-                        })
-                    });
-                    console.log(`[ระบบแยกคอร์ส] ส่งคำสั่งเช็คเอาท์ไปยัง API ของหลักสูตร: ${user.course_key}`);
-                } catch(gasErr) { console.error("Cert Generation Routing Error:", gasErr); }
+                // 🌟 แก้ไข: ยิง API โดยไม่ใช้ 'no-cors' เพื่อเปิดรับข้อมูลลิงก์ PDF กลับมาจากฝั่ง GAS
+                const response = await fetch(targetCertApi, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' }, // GAS รับแบบ text/plain เป็นหลักเพื่อเลี่ยงปัญหา CORS พรีไฟลท์
+                    body: JSON.stringify({
+                        action: "checkOutSuccess",
+                        id: String(user.id).trim(),
+                        course_key: String(user.course_key).trim()
+                    })
+                });
 
-                // 3. เปลี่ยนแปลง UI บนหน้าจอแอปพลิเคชัน
+                // ตรวจสอบข้อมูลดิบที่ตอบกลับมาจาก Google Apps Script
+                const resText = await response.text();
+                let pdfUrl = "";
+
+                try {
+                    const resJson = JSON.parse(resText);
+                    // ดักจับ URL จาก GAS ที่มักจะส่งกลับมาในคีย์ pdfUrl หรือ url
+                    if (resJson.pdfUrl) pdfUrl = resJson.pdfUrl;
+                    else if (resJson.url) pdfUrl = resJson.url;
+                } catch(e) {
+                    console.log("Response ไม่เป็น JSON หรือไม่มีคีย์ URL ส่งกลับมา:", resText);
+                }
+
+                // สั่งเปิดลิงก์ใบประกาศในแท็บใหม่ทันทีหากพบ URL 
+                if (pdfUrl) {
+                    window.open(pdfUrl, '_blank');
+                    Swal.fire('สำเร็จ', 'กำลังเปิดไฟล์ใบประกาศนียบัตร...', 'success');
+                } else {
+                    // กรณีที่หลังบ้านไม่ได้ส่งลิงก์มา ให้แสดงกล่องข้อความแจ้งเตือนผู้ใช้งานทราบ
+                    Swal.fire('สั่งงานสำเร็จ', 'ระบบส่งคำสั่งสร้างใบประกาศแล้ว (กรุณาตรวจสอบที่ Google Drive หรือคิวพิมพ์เอกสารหลัก)', 'info');
+                }
+
+                // อัปเดต UI หน้าเว็บเป็นสถานะเช็คเอาท์สำเร็จ
                 courseCard.innerHTML = `
                     <div class="alert alert-info border-info text-center mb-0 py-3 fw-bold">
                         <i class="fas fa-graduation-cap me-1"></i> สั่งพิมพ์ใบประกาศสำหรับหลักสูตร [${user.course_key}] สำเร็จแล้ว!
                     </div>`;
 
                 user.is_checked_out = true;
+                isProcessing = false;
             }
 
         } catch (e) {
+            console.error(e);
             Swal.fire('เกิดข้อผิดพลาด', e.message, 'error');
             if(actionBtn) {
                 actionBtn.disabled = false;
                 actionBtn.innerHTML = originalBtnContent;
             }
+            isProcessing = false;
         } finally { 
             isProcessing = false; 
         }

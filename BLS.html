@@ -97,13 +97,15 @@
 
   <div id="previewModal" class="fixed inset-0 bg-slate-900/60 h-full w-full hidden z-50 flex items-center justify-center backdrop-blur-sm transition-opacity p-4">
     <div class="relative p-6 border w-full max-w-4xl shadow-2xl rounded-3xl bg-white animate-pop">
-      <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-100">
-        <div>
-          <h3 class="text-2xl font-extrabold text-slate-800">ตัวอย่างสัดส่วนจัดวางข้อมูลภาพก่อนออกจริง (BLS)</h3>
-        </div>
-        <button onclick="closePreviewModal()" class="text-slate-400 hover:text-rose-500 bg-slate-50 hover:bg-rose-50 transition-all duration-200 rounded-xl p-2 active:scale-95">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-        </button>
+      
+      <button onclick="closePreviewModal()" class="absolute -top-3 -right-3 bg-rose-500 hover:bg-rose-600 text-white rounded-full p-2.5 shadow-lg active:scale-95 transition-all duration-200 z-[60] border-2 border-white group" title="ปิดหน้าต่างพรีวิว">
+        <svg class="w-5 h-5 stroke-[3] transform group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+
+      <div class="mb-4 pb-4 border-b border-slate-100">
+        <h3 class="text-2xl font-extrabold text-slate-800">ตัวอย่างสัดส่วนจัดวางข้อมูลภาพก่อนออกจริง (BLS)</h3>
       </div>
       
       <div class="mt-2 w-full flex justify-center items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden relative min-h-[380px]">
@@ -124,31 +126,27 @@
     const TEMPLATE_IMAGE_URL = "https://ghgmupyrkeakyolliogv.supabase.co/storage/v1/object/public/rjrh-trainning's%20Org/BLS%20V.Eng2.png"; 
     
     const TEXT_CONFIG = {
-      // เปลี่ยนฟอนต์เป็น Merriweather ตามบรีฟ
       nameFont: "italic 700 26px 'Merriweather', serif", 
       nameColor: "#1c140e",            
-      nameYOffset: 230, // ขยับลงมาเล็กน้อยเพื่อความบาลานซ์ของสัดส่วนเอกสาร
+      nameYOffset: 230, 
       
       dateFont: "400 15px 'Merriweather', serif", 
       dateColor: "#1c140e", 
       dateYOffset: 395, 
       
-      // ตั้งค่าฟอนต์ สี และพิกัดตำแหน่งเลขที่ใบประกาศมุมบนขวา
       certNoFont: "700 13px 'Merriweather', serif",
-      certNoColor: "#015d92", // ปรับเป็นสีกรมท่าหลักตามเงื่อนไข
-      certNoXOffset: 733,     // วิ่งพิกัดไปชิดขวาก่อนเข้าจุดสิ้นสุดใบประกาศ (ความกว้างรวม 800)
-      certNoYOffset: 60,      // ระยะดิ่งจากขอบบน
+      certNoColor: "#015d92", 
+      certNoXOffset: 740,     
+      certNoYOffset: 60,      
       
       align: "center",             
       xOffset: 400 
     };
 
-    // 📁 ผูกไอดีโฟลเดอร์สำหรับหลักสูตร BLS ในระบบเซิร์ฟเวอร์สำรองฝั่งหน้าบ้าน
     const FOLDER_CONFIG = { "BLS": "1vw-PnQlbpjcKDk-OrdI7igezWvDtxe6G" };
     let localQueueData = [];
     let preloadedTemplateImage = null;
 
-    // 🕒 แก้ไขปัญหาเรื่องการ Sync ลำดับการรัน: รอให้ระบบวินโดว์และ config.js โหลดตัวแปรสำเร็จก่อนเรียกใช้งานฐานข้อมูล
     window.addEventListener('load', async () => {
         if (typeof checkAuthGuard === 'function') { await checkAuthGuard(); }
         loadSessions();
@@ -174,7 +172,6 @@
         if (error) return;
         sel.innerHTML = '<option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>';
         sessions.forEach(s => { 
-            // คัดกรองกรองแสดงผลเฉพาะรหัสรอบคอร์สที่ขึ้นต้นด้วย BLS
             if(s.course_key && s.course_key.startsWith('BLS')) {
                 sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name}</option>`; 
             }
@@ -276,19 +273,16 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height); 
             ctx.drawImage(imgObj, 0, 0, 800, 600); 
 
-            // วาดจุดที่ 1: ชื่อ-นามสกุล (กึ่งกลางภาพ)
             ctx.textAlign = TEXT_CONFIG.align;
             ctx.textBaseline = "middle"; 
             ctx.font = TEXT_CONFIG.nameFont;
             ctx.fillStyle = TEXT_CONFIG.nameColor;
             ctx.fillText(fullNameStr, TEXT_CONFIG.xOffset, TEXT_CONFIG.nameYOffset);
 
-            // วาดจุดที่ 2: วันที่อบรม (กึ่งกลางภาพ)
             ctx.font = TEXT_CONFIG.dateFont;
             ctx.fillStyle = TEXT_CONFIG.dateColor;
             ctx.fillText(dateStr, TEXT_CONFIG.xOffset, TEXT_CONFIG.dateYOffset);
 
-            // วาดจุดที่ 3: หมายเลขเอกสาร (ปรับคุณสมบัติเป็นชิดขวา วางมุมบนขวาตามตำแหน่งสากล)
             ctx.font = TEXT_CONFIG.certNoFont;
             ctx.fillStyle = TEXT_CONFIG.certNoColor;
             ctx.textAlign = "right"; 

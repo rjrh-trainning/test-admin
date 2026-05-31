@@ -143,6 +143,7 @@
         preloadTemplate(); 
     });
 
+    // ตรวจสอบและดึงฟอนต์แม่แบบโครงสร้าง
     function preloadTemplate() {
         preloadedTemplateImage = new Image();
         preloadedTemplateImage.crossOrigin = "Anonymous";
@@ -151,7 +152,7 @@
         document.fonts.load(TEXT_CONFIG.dateFont);
     }
 
-    /* 🛠️ อัพเดทฟังก์ชันนี้ให้ผูกวันที่เข้าท้ายชื่อรอบอบรมของ STB */
+    // 🌟 อัปเดต: เปลี่ยนแท็กตัวเลือกใน option ให้ล็อกด้วยค่า s.id (รหัสไอดีรอบอบรมจำเพาะ)
     async function loadSessions() {
         const sel = document.getElementById('certSessionSelect');
         const { data: sessions, error } = await supabaseClient.from('sessions').select('*').order('id', { ascending: true });
@@ -159,27 +160,26 @@
         sel.innerHTML = '<option value="">-- เลือกรอบอบรมเพื่อจัดการใบประกาศ --</option>';
         sessions.forEach(s => { 
             if(s.course_key && s.course_key.startsWith('STB')) {
-                // ค้นหาฟิลด์วันที่จากออบเจกต์ session
                 let sessionDate = s.training_date || s.date || "ไม่ระบุวันที่";
-                // แสดงผลลัพธ์แบบระบุวันที่ต่อท้าย เช่น [STB-01] Course Name (27/05/2026)
-                sel.innerHTML += `<option value="${s.course_key}">[${s.course_key}] ${s.name} (${sessionDate})</option>`; 
+                sel.innerHTML += `<option value="${s.id}" data-coursekey="${s.course_key}">[${s.course_key}] ${s.name} (${sessionDate})</option>`; 
             }
         });
     }
 
+    // 🌟 อัปเดต: สั่งเรียกตรวจสอบคิวพิมพ์วุฒิบัตรตรงเป้าด้วยคอลัมน์ session_id ป้องกันข้อมูลหลุดหลงข้ามกลุ่ม
     async function loadCertificatesQueue() {
-        const courseKey = document.getElementById('certSessionSelect').value; 
+        const sessionId = document.getElementById('certSessionSelect').value; 
         document.getElementById('checkAllMaster').checked = false;
         updateBatchUI();
         
-        if(!courseKey) return;
+        if(!sessionId) return;
         const tbody = document.getElementById('certParticipantList'); 
         tbody.innerHTML = '<tr><td colspan="6" class="p-10 text-center text-slate-400 font-medium italic"><svg class="animate-spin h-6 w-6 mx-auto mb-2 text-indigo-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>กำลังดึงข้อมูลคิวจากตารางใบประกาศ Supabase...</td></tr>';
         
         const { data: list, error } = await supabaseClient
             .from('certificates_queue')
             .select('*')
-            .eq('course_key', courseKey)
+            .eq('session_id', sessionId)
             .order('id', { ascending: true });
             
         if(error) { 
@@ -225,7 +225,7 @@
                         <div class="flex flex-wrap justify-center items-center gap-1.5">
                             <button onclick="fetchTextAndPreviewFast(${index})" class="px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-600 hover:text-sky-700 rounded-xl text-xs font-bold border border-sky-100 active:scale-95 transition-all flex items-center gap-1">พรีวิว</button>
                             ${viewBtn}
-                            <button onclick="triggerGenSingle('${row.registration_id}', '${row.course_key}')" id="btn_gen_${row.registration_id}" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-700 rounded-xl text-xs font-bold border border-indigo-100 active:scale-95 transition-all flex items-center gap-1">GEN</button>
+                            <button onclick="triggerGenSingle('${row.registration_id}', '${row.course_key || 'STB'}')" id="btn_gen_${row.registration_id}" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-700 rounded-xl text-xs font-bold border border-indigo-100 active:scale-95 transition-all flex items-center gap-1">GEN</button>
                         </div>
                     </td>
                 </tr>`;
@@ -306,9 +306,12 @@
         document.getElementById('previewModal').classList.add('hidden'); 
     }
 
+    // 🌟 อัปเดต: แนบและส่งค่ารหัสสลักรอบเรียนจำเพาะ (session_id: sessionId) ยิงพ่วงผ่านคำสั่งสคริปต์หลังบ้าน
     async function triggerGenSingle(regId, courseKey) {
         const btn = document.getElementById(`btn_gen_${regId}`);
         const badge = document.getElementById(`badge_${regId}`);
+        const sessionId = document.getElementById('certSessionSelect').value;
+        
         if(btn) { btn.disabled = true; btn.innerHTML = `...`; }
         if(badge) { badge.className = "px-3 py-1.5 rounded-full text-xs font-bold border block w-full truncate bg-indigo-100 text-indigo-700 border-indigo-200 animate-pulse"; badge.innerHTML = `กำลังเจน...`; }
 
@@ -318,7 +321,7 @@
             const response = await fetch(CERT_STB_API, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ regId: regId, courseKey: courseKey, folderId: targetFolderId })
+                body: JSON.stringify({ regId: regId, course_key: courseKey, session_id: sessionId, folderId: targetFolderId })
             });
             const result = await response.json();
             if (result.success) {
@@ -340,7 +343,10 @@
 
     async function executeBatchRun(currentBatchCbs, totalSelected) {
         const mainBtn = document.getElementById('btnBatchGen');
-        const courseKey = document.getElementById('certSessionSelect').value;
+        const selectElement = document.getElementById('certSessionSelect');
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        const courseKey = selectedOption.getAttribute('data-coursekey') || "STB";
+        
         mainBtn.disabled = true;
         mainBtn.innerHTML = `กำลังประมวลผลคิวกลุ่ม...`;
 

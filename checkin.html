@@ -72,8 +72,12 @@
     let isProcessing = false;
     let fetchedRecords = []; 
 
-    // 🔄 ดึงค่าจาก GOOGLE_SHEET_API ใน config.js มาใช้เป็นจุดรับข้อมูลเช็คอินหลักหลัก
+    // API หลักสเปรดชีตสำหรับการบันทึก Log และประมวลผลเช็คอินพื้นฐาน
     const CHECKIN_API_URL = typeof GOOGLE_SHEET_API !== 'undefined' ? GOOGLE_SHEET_API : "https://script.google.com/macros/s/AKfycbw1bS3fjGQngjLdKssc8yWzmbQ1gKOvTvUxraCU2eIHNxjvyyAj3iIqGcey_ETZK3pk/exec";
+
+    // 🚀 ล็อกลิงก์ API สำหรับการออกใบประกาศโดยตรงแยกตามหลักสูตร
+    const LIVE_BLS_API = "https://script.google.com/macros/s/AKfycbxeH8fwOwWeOh83K5zORNVtq5O1ZnNLZDAB79Ic2wyJWZjWRK9frNkD6_dRs_jl6gNVoA/exec";
+    const LIVE_STB_API = "https://script.google.com/macros/s/AKfycby0ebBHlmguiJX9RYqX7cBhKV7Cni42Xn6IsJfbjvS2EIZFrBJpu31fI2gQ2Xm5cOEh/exec";
 
     window.addEventListener('DOMContentLoaded', async () => {
         if (typeof checkAuthGuard === 'function') {
@@ -291,14 +295,12 @@
             // ☀️ [โหมดเช็คอิน - IN]: เพิ่มคิวใบเซอร์ + บันทึกข้อมูลเข้าฐานข้อมูล
             // ==========================================
             if (selectedMode === "IN") {
-                // 1. อัปเดตสถานะเช็คอินใน Supabase
                 const { error: updateError } = await supabaseClient
                     .from('registrations')
                     .update({ is_checked_in: true, checked_in_at: nowTime })
                     .eq('id', user.id);
                 if (updateError) throw updateError;
 
-                // 2. ส่งข้อมูลเข้าคิวพิมพ์ใบประกาศ
                 let finalFullNameEn = user.full_name_en ? String(user.full_name_en).trim() : "";
                 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                 const d = new Date();
@@ -315,7 +317,6 @@
                     }]);
                 if (queueError) throw queueError;
 
-                // 3. ส่งคำสั่งไปซิงก์ข้อมูลอัปเดตบนหน้า Google Sheets หลัก
                 try {
                     await fetch(CHECKIN_API_URL, {
                         method: 'POST',
@@ -329,7 +330,6 @@
                     });
                 } catch(gasErr) { console.error("GAS Sync Error:", gasErr); }
 
-                // 4. เปลี่ยน UI หน้าจอแสดงผลสำเร็จ
                 courseCard.innerHTML = `
                     <div class="alert alert-success border-success text-center mb-0 py-3 fw-bold">
                         <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จ! ส่งข้อมูลเข้าคิวเตรียมพิมพ์ใบประกาศแล้ว
@@ -338,10 +338,10 @@
                 user.is_checked_in = true;
             } 
             // ==========================================
-            // 🌙 [โหมดเช็คเอาท์ - OUT]: บันทึก Supabase & Sheets + เด้งเปิด PDF
+            // 🌙 [โหมดเช็คเอาท์ - OUT]: แยกยิงตามสาย API ตรงตัว
             // ==========================================
             else {
-                // 1. 🔄 อัปเดตฟิลด์สถานะเช็คเอาท์ไปที่ Supabase
+                // 1. ปรับปรุงสถานะเช็คเอาท์ไปฝั่ง Supabase
                 const { error: updateOutError } = await supabaseClient
                     .from('registrations')
                     .update({ 
@@ -352,15 +352,17 @@
                 
                 if (updateOutError) throw updateOutError;
 
-                // 2. เลือก API แยกตามประเภทหลักสูตรที่ลงทะเบียนไว้
-                let targetCertApi = typeof CERT_STB_API !== 'undefined' ? CERT_STB_API : CHECKIN_API_URL;
+                // 2. คัดเลือก API ตามคีย์เวิร์ดของแต่ละหลักสูตรที่ช่างส่งมาให้
+                let targetCertApi = CHECKIN_API_URL; 
                 const currentCourseKeyUpper = String(user.course_key).toUpperCase();
                 
-                if (currentCourseKeyUpper.includes("BLS") && typeof CERT_BLS_API !== 'undefined') {
-                    targetCertApi = CERT_BLS_API;
+                if (currentCourseKeyUpper.includes("BLS")) {
+                    targetCertApi = LIVE_BLS_API;
+                } else if (currentCourseKeyUpper.includes("STB")) {
+                    targetCertApi = LIVE_STB_API;
                 }
 
-                // 3. สั่งยิงข้อมูลไปให้ Google Apps Script เพื่อเจนไฟล์ PDF แบบเปิดทางดักจับ Response
+                // 3. ยิงข้อมูลไปให้ GAS ของฝั่งหลักสูตรนั้นเพื่อสั่งเปิดการเจน PDF
                 const response = await fetch(targetCertApi, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain' },
@@ -371,7 +373,7 @@
                     })
                 });
 
-                // 4. 🔄 ส่งคำสั่งล็อกข้อมูลไปบันทึกซิงก์สถานะเช็คเอาท์ที่ Google Sheets หลักด้วย
+                // 4. บันทึกซิงก์ประวัติการเช็คเอาท์ลงในชีตส่วนกลางหลัก
                 try {
                     await fetch(CHECKIN_API_URL, {
                         method: 'POST',
@@ -385,7 +387,7 @@
                     });
                 } catch(gasErr) { console.error("GAS Sync Checkout Error:", gasErr); }
 
-                // 5. ดึงข้อความและแปลงเป็น JSON เพื่อหา URL ปลายทางของเอกสาร PDF 
+                // 5. ประมวลผลดักจับ Response รับ URL ลิงก์ใบประกาศ PDF
                 const resText = await response.text();
                 let pdfUrl = "";
 
@@ -394,18 +396,18 @@
                     if (resJson.pdfUrl) pdfUrl = resJson.pdfUrl;
                     else if (resJson.url) pdfUrl = resJson.url;
                 } catch(e) {
-                    console.log("Response ไม่ได้ส่งค่าลิงก์ URL กลับมาโดยตรงหรือโครงสร้างไม่ใช่ JSON:", resText);
+                    console.log("Response ข้อมูลฝั่งหลังบ้านไม่ส่งค่า URL กลับมาตรงคีย์หลัก:", resText);
                 }
 
-                // 6. ถ้าเจอ URL ลิงก์ระบบจะระเบิดแท็บใหม่เปิดไฟล์ดาวน์โหลดให้แอดมินทันที
+                // 6. เด้งเปิดหน้าต่างดาวน์โหลดทันทีถ้าข้อมูลถูกส่งกลับมาสมบูรณ์
                 if (pdfUrl) {
                     window.open(pdfUrl, '_blank');
-                    Swal.fire('สำเร็จ', 'บันทึกข้อมูลเช็คเอาท์และกำลังดาวน์โหลดไฟล์ใบประกาศ...', 'success');
+                    Swal.fire('สำเร็จ', 'บันทึกข้อมูลเช็คเอาท์และกำลังเปิดไฟล์ใบประกาศ...', 'success');
                 } else {
                     Swal.fire('สำเร็จ', 'บันทึกข้อมูลเช็คเอาท์ลงระบบและสั่งพิมพ์ใบประกาศเรียบร้อยแล้ว', 'success');
                 }
 
-                // 7. สลับ UI หน้าจอเป็นสถานะเช็คเอาท์เสร็จสมบูรณ์
+                // 7. เคลียร์ UI แสดงสถานะสำเร็จบนหน้าจอแอปพลิเคชัน
                 courseCard.innerHTML = `
                     <div class="alert alert-info border-info text-center mb-0 py-3 fw-bold">
                         <i class="fas fa-graduation-cap me-1"></i> เช็คเอาท์และสั่งพิมพ์ใบประกาศสำหรับหลักสูตร [${user.course_key}] สำเร็จแล้ว!

@@ -161,7 +161,7 @@
         document.fonts.load(TEXT_CONFIG.certNoFont);
     }
 
-    // 🌟 อัปเดต: เปลี่ยนค่า value ของแท็ก option ให้เก็บค่าเป็น s.id (เลขไอดีรอบจำเพาะ)
+    // 🌟 แก้ไขสําเร็จ: บังคับให้ปุ่ม Dropdown ส่งค่าเลข ID รอบ (s.id) ออกมาคุยกับฐานข้อมูลแทนตัวอักษรสตริงหลักสูตร
     async function loadSessions() {
         if (!supabaseClient) {
             console.error("Supabase client is not initialized yet.");
@@ -179,7 +179,7 @@
         });
     }
 
-    // 🌟 อัปเดต: เปลี่ยนเงื่อนไขคำสั่งคัดกรองคิวงานจากตารางให้ค้นหาด้วยฟิลด์ session_id
+    // 🌟 แก้ไขสําเร็จ: ล็อกเป้าตัวแปร sessionId ดึงข้อมูลคิวพิมพ์สอดประสานตามรหัสรอบเรียนได้อย่างแม่นยำ
     async function loadCertificatesQueue() {
         const sessionId = document.getElementById('certSessionSelect').value; 
         document.getElementById('checkAllMaster').checked = false;
@@ -327,12 +327,11 @@
         }
     }
 
-    // ปิดโมดอลพรีวิว
     function closePreviewModal() {
         document.getElementById('previewModal').classList.add('hidden'); 
     }
 
-    // 🌟 อัปเดต: พ่วงข้อมูลรหัสล็อกรอบเรียนจำเพาะ (session_id: sessionId) ยิงส่งผ่านคำสั่งสคริปต์หลังบ้าน
+    // 🌟 แก้ไขสําเร็จ: ปรับเปลี่ยนแมปชื่อตัวแปรยิงส่ง (courseKey และ session_id) ให้อิงตามพิมพ์ใหญ่พิมพ์เล็กของโค้ดสคริปต์หลังบ้านหลัก
     async function triggerGenSingle(regId, courseKey) {
         const btn = document.getElementById(`btn_gen_${regId}`);
         const badge = document.getElementById(`badge_${regId}`);
@@ -347,7 +346,7 @@
             const response = await fetch(CERT_BLS_API, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ regId: regId, course_key: courseKey, session_id: sessionId, folderId: targetFolderId })
+                body: JSON.stringify({ regId: regId, courseKey: courseKey, session_id: sessionId, folderId: targetFolderId })
             });
             const result = await response.json();
             if (result.success) {

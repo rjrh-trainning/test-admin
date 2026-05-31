@@ -242,7 +242,7 @@
                     } else {
                         htmlContent += `
                             <button class="btn btn-info btn-sm text-white w-100 fw-bold mt-3 py-2 shadow-sm" id="btn-action-${index}" onclick="commitCheckInSpecific(${index}, 'OUT')">
-                                <i class="fas fa-graduation-cap me-1"></i> บันทึกเช็คเอาท์คอร์สนี้เพื่อรับวุฒิบัตร
+                                <i class="fas fa-graduation-cap me-1"></i> สั่งพิมพ์ใบประกาศสำหรับคอร์สนี้
                             </button>`;
                     }
                 }
@@ -254,7 +254,6 @@
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = htmlContent;
 
-            // ✨ [เพิ่มจุดนี้] ล้างข้อความในช่องอินพุตทันทีเมื่อดึงข้อมูลและแสดงผลสำเร็จ
             document.getElementById('searchInput').value = "";
 
         } catch (e) {
@@ -285,39 +284,14 @@
             let nowTime = new Date().toISOString();
 
             if (selectedMode === "IN") {
+                // 1. อัปเดตสถานะเช็คอินของตารางหลัก (registrations)
                 const { error: updateError } = await supabaseClient
                     .from('registrations')
                     .update({ is_checked_in: true, checked_in_at: nowTime })
                     .eq('id', user.id);
                 if (updateError) throw updateError;
 
-                try {
-                    await fetch(CHECKIN_API_URL, {
-                        method: 'POST',
-                        mode: 'no-cors', 
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify({
-                            action: "checkInSuccess",
-                            id: String(user.id).trim(),
-                            course_key: String(user.course_key).trim()
-                        })
-                    });
-                } catch(gasErr) { console.error("GAS Sync Error:", gasErr); }
-
-                courseCard.innerHTML = `
-                    <div class="alert alert-success border-success text-center mb-0 py-3 fw-bold">
-                        <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จแล้ว!
-                    </div>`;
-
-                user.is_checked_in = true;
-
-            } else {
-                const { error: updateError } = await supabaseClient
-                    .from('registrations')
-                    .update({ is_checked_out: true, checked_out_at: nowTime })
-                    .eq('id', user.id);
-                if (updateError) throw updateError;
-
+                // 2. จัดรูปแบบวันที่และข้อมูล เพื่อยิงเข้าตารางคิวใบเซอร์ (certificates_queue)
                 let finalFullNameEn = user.full_name_en ? String(user.full_name_en).trim() : "";
                 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                 const d = new Date();
@@ -334,6 +308,37 @@
                     }]);
                 if (queueError) throw queueError;
 
+                // 3. ส่งข้อมูลเช็คอินไปอัปเดตที่ Google Sheets
+                try {
+                    await fetch(CHECKIN_API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors', 
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({
+                            action: "checkInSuccess",
+                            id: String(user.id).trim(),
+                            course_key: String(user.course_key).trim()
+                        })
+                    });
+                } catch(gasErr) { console.error("GAS Sync Error:", gasErr); }
+
+                // 4. เปลี่ยน UI แสดงสถานะความสำเร็จบนหน้าจอ
+                courseCard.innerHTML = `
+                    <div class="alert alert-success border-success text-center mb-0 py-3 fw-bold">
+                        <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จ! ข้อมูลถูกส่งเข้าคิวพิมพ์ใบประกาศแล้ว
+                    </div>`;
+
+                user.is_checked_in = true;
+
+            } else {
+                // 1. โหมด OUT: อัปเดตสถานะเช็คเอาท์ที่ตารางหลัก (registrations) เท่านั้น
+                const { error: updateError } = await supabaseClient
+                    .from('registrations')
+                    .update({ is_checked_out: true, checked_out_at: nowTime })
+                    .eq('id', user.id);
+                if (updateError) throw updateError;
+
+                // 2. ส่งคำสั่งแจ้งเตือนระบบ Google Apps Script ว่าคนนี้พร้อมสั่งสร้าง PDF แล้ว (ไม่มีการเขียนข้อมูลลงคิวซ้ำ)
                 try {
                     await fetch(CHECKIN_API_URL, {
                         method: 'POST',
@@ -348,9 +353,10 @@
                     console.log(`GAS Sync Checkout Success for Course Key: ${user.course_key}`);
                 } catch(gasErr) { console.error("GAS Sync Error:", gasErr); }
 
+                // 3. เปลี่ยน UI แสดงผลสำเร็จ
                 courseCard.innerHTML = `
                     <div class="alert alert-info border-info text-center mb-0 py-3 fw-bold">
-                        <i class="fas fa-graduation-cap me-1"></i> เช็คเอาท์หลักสูตร [${user.course_key}] สำเร็จ! ระบบกำลังเตรียมใบเซอร์
+                        <i class="fas fa-graduation-cap me-1"></i> สั่งพิมพ์ใบประกาศสำหรับหลักสูตร [${user.course_key}] สำเร็จแล้ว!
                     </div>`;
 
                 user.is_checked_out = true;

@@ -127,7 +127,7 @@
             return; 
         }
 
-        // 2. 🌟 แก้ไข: ดึงฟิลด์ตามชื่อจริงใน Supabase คือ certificate_url
+        // 2. ดึงฟิลด์ตามชื่อจริงในฐานข้อมูล Supabase (certificate_url)
         const { data: queueList, error: queueError } = await supabaseClient
             .from('certificates_queue')
             .select('registration_id, pdf_status, certificate_url');
@@ -139,7 +139,7 @@
         tbody.innerHTML = '';
         document.getElementById('btnBulkEmail').disabled = false;
 
-        // 3. 🌟 แก้ไข: แมปชื่อจาก certificate_url ข้ามมารองรับโครงสร้างระบบหน้าบ้านเดิม
+        // 3. ผูกข้อมูลและจับคู่กันภายใน Array บนแรมของเบราว์เซอร์
         const mergedList = regList.map(row => {
             const matchQueue = queueList ? queueList.find(q => String(q.registration_id) === String(row.id)) : null;
             return {
@@ -168,13 +168,12 @@
             let certBadge = '';
             let actionBtn = '';
 
-            // 4. 🌟 แก้ไข: เพิ่มเงื่อนไขดักจับทั้งภาษาอังกฤษ ('sent') และภาษาไทย ('ส่งสำเร็จ')
+            // 4. ดักจับเงื่อนไขทั้งสถานะสากลหรือภาษาไทย
             if (pdfStatus === 'sent' || pdfStatus === 'ส่งสำเร็จ') {
                 certBadge = `<span class="badge badge-status bg-success text-white"><i class="fas fa-envelope-open-text me-1"></i> ส่งอีเมลแล้ว</span>`;
                 actionBtn = `<a href="${certUrl}" target="_blank" class="btn btn-sm btn-outline-secondary" title="ดูไฟล์บน Drive"><i class="fab fa-google-drive"></i></a>
                              <button class="btn btn-sm btn-outline-primary ms-1" onclick="sendSingleEmail('${row.id}')" title="ส่งอีเมลซ้ำ"><i class="fas fa-sync-alt"></i></button>`;
             
-            // 5. 🌟 แก้ไข: ดักสถานะ "ออกสำเร็จ" จากตารางคิวจริง เพื่อให้แสดงผลขึ้นปุ่มพร้อมส่งทันที
             } else if (pdfStatus === 'ออกสำเร็จ' || (certUrl && certUrl !== '')) {
                 certBadge = `<span class="badge badge-status bg-info text-dark fw-bold"><i class="fas fa-file-pdf me-1"></i> สร้างแล้ว (พร้อมส่ง)</span>`;
                 actionBtn = `<a href="${certUrl}" target="_blank" class="btn btn-sm btn-success text-white" title="ดูไฟล์ใบประกาศ"><i class="fas fa-eye"></i></a>
@@ -184,6 +183,7 @@
                 actionBtn = `<button class="btn btn-sm btn-light" disabled title="ยังไม่มีไฟล์ใบประกาศบน Drive"><i class="fas fa-ban"></i></button>`;
             }
 
+            // 🌟 ปรับปรุง: เปลี่ยนจาก row.email เป็น row.email_th ให้สัมพันธ์กับคอลัมน์จริงในเบส
             tbody.innerHTML += `
                 <tr id="row_${row.id}">
                     <td class="text-center">
@@ -193,7 +193,7 @@
                     <td>
                         <span class="fs-6 fw-bold text-dark">${row.full_name_th || ''}</span><br>
                         <small class="text-muted">${prefixStr}${row.full_name_en || ''}</small><br>
-                        <small class="text-primary"><i class="fas fa-envelope me-1"></i>${row.email || 'ไม่มีข้อมูลอีเมล'}</small>
+                        <small class="text-primary"><i class="fas fa-envelope me-1"></i>${row.email_th || 'ไม่มีข้อมูลอีเมล'}</small>
                     </td>
                     <td class="text-center">${photoConsentStatus}</td>
                     <td class="text-center">${status}</td>
@@ -247,7 +247,8 @@
         const certObj = p.certificates_queue;
         const certUrl = certObj ? certObj.cert_url : null;
 
-        if(!p.email || !certUrl) {
+        // 🌟 ปรับปรุง: ตรวจสอบความถูกต้องผ่านฟิลด์ p.email_th
+        if(!p.email_th || !certUrl) {
             alert('ไม่สามารถส่งได้เนื่องจาก ข้อมูลอีเมล หรือ ลิงก์ใบประกาศไม่ครบถ้วน');
             return;
         }
@@ -257,9 +258,10 @@
         const rowEl = document.getElementById(`row_${regId}`);
         rowEl.style.opacity = '0.5';
 
+        // 🌟 ปรับปรุง: แพ็กข้อมูล email ส่งออกไปโดยดึงจาก p.email_th
         const singlePayload = [{
             registration_id: p.id,
-            email: p.email,
+            email: p.email_th, 
             name_th: p.full_name_th,
             name_en: p.full_name_en,
             course_name: currentSessionName,
@@ -306,10 +308,11 @@
                 const certObj = p.certificates_queue;
                 const certUrl = certObj ? certObj.cert_url : null;
 
-                if(p.email && certUrl) {
+                // 🌟 ปรับปรุง: ตรวจสอบและดึงข้อมูลอีเมลผ่านฟิลด์ p.email_th ให้ตรงตามตารางจริง
+                if(p.email_th && certUrl) {
                     bulkPayload.push({
                         registration_id: p.id,
-                        email: p.email,
+                        email: p.email_th, 
                         name_th: p.full_name_th,
                         name_en: p.full_name_en,
                         course_name: currentSessionName,

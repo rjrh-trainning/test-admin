@@ -73,6 +73,7 @@
 
     const CHECKIN_API_URL = typeof GOOGLE_SHEET_API !== 'undefined' ? GOOGLE_SHEET_API : "https://script.google.com/macros/s/AKfycbw1bS3fjGQngjLdKssc8yWzmbQ1gKOvTvUxraCU2eIHNxjvyyAj3iIqGcey_ETZK3pk/exec";
     const LIVE_BLS_API = "https://script.google.com/macros/s/AKfycbxeH8fwOwWeOh83K5zORNVtq5O1ZnNLZDAB79Ic2wyJWZjWRK9frNkD6_dRs_jl6gNVoA/exec";
+    // 📌 อัปเดตลิงก์สคริปต์ STB ตัวล่าสุดที่ใช้งานได้จริงตามที่ส่งมา
     const LIVE_STB_API = "https://script.google.com/macros/s/AKfycby0ebBHlmguiJX9RYX7cBhKV7Cni42Xn6IsJfbjvS2EIZFrBJpu31fI2gQ2Xm5cOEh/exec";
 
     window.addEventListener('DOMContentLoaded', async () => {
@@ -120,6 +121,7 @@
         }
     }
 
+    // [คงเดิม]
     function onScanSuccess(decodedText) {
         if(isProcessing) return;
         document.getElementById('searchInput').value = decodedText;
@@ -288,7 +290,7 @@
             let nowTime = new Date().toISOString();
 
             // ==========================================
-            // ☀️ [โหมดเช็คอิน - IN]: อัปเดตตารางหลัก + สร้างคิวพร้อมเวลากับ session_id
+            // ☀️ [โหมดเช็คอิน - IN]
             // ==========================================
             if (selectedMode === "IN") {
                 const { error: updateError } = await supabaseClient
@@ -338,24 +340,24 @@
                 user.is_checked_in = true;
             } 
             // ==========================================
-            // 🌙 [โหมดเช็คเอาท์ - OUT]: บันทึกเวลาเช็คเอาท์ลง Supabase + สั่ง GAS เจนใบประกาศ
+            // 🌙 [โหมดเช็คเอาท์ - OUT]
             // ==========================================
             else {
-                // 1. สั่งบันทึกข้อมูลเวลาเช็คเอาท์กลับไปยัง Supabase ตาราง registrations ทันที
+                // 1. สั่งบันทึกข้อมูลเวลาเช็คเอาท์กลับไปยัง Supabase ทันที
                 const { error: checkoutUpdateError } = await supabaseClient
                     .from('registrations')
                     .update({ is_checked_out: true, checked_out_at: nowTime })
                     .eq('id', user.id);
                 if (checkoutUpdateError) throw checkoutUpdateError;
 
-                // 2. แยกสาขาลิงก์สคริปต์ตามคอร์สเรียน
+                // 2. 🚀 ปรับปรุงคัดแยกปลายทาง: เช็คเงื่อนไขคำว่า "STB" ขึ้นเป็นอันดับแรกสุด ป้องกันลอจิกซ้ำซ้อนดักแย่ง
                 let targetCertApi = CHECKIN_API_URL; 
                 const currentCourseKeyUpper = String(user.course_key).toUpperCase();
                 
-                if (currentCourseKeyUpper.includes("BLS")) {
-                    targetCertApi = LIVE_BLS_API;
-                } else if (currentCourseKeyUpper.includes("STB")) {
+                if (currentCourseKeyUpper.includes("STB")) {
                     targetCertApi = LIVE_STB_API;
+                } else if (currentCourseKeyUpper.includes("BLS") || currentCourseKeyUpper.includes("BCLS")) {
+                    targetCertApi = LIVE_BLS_API;
                 }
 
                 let pdfUrl = "";

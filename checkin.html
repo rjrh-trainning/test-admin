@@ -289,7 +289,7 @@
             let nowTime = new Date().toISOString();
 
             // ==========================================
-            // ☀️ [โหมดเช็คอิน - IN]: เพิ่มคิวใบเซอร์ + บันทึกข้อมูลเข้าฐานข้อมูล
+            // ☀️ [โหมดเช็คอิน - IN]: เพิ่มคิวใบเซอร์ + สแตมป์เวลาและรอบอบรมลงฐานข้อมูลคิว
             // ==========================================
             if (selectedMode === "IN") {
                 const { error: updateError } = await supabaseClient
@@ -303,13 +303,18 @@
                 const d = new Date();
                 const formattedTrainingDate = `On ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}(Training day )`;
                 
+                // จัดเตรียมค่ารหัสรอบเข้าสู่โครงสร้างตัวเลขแบบปลอดภัย
+                let userSessionId = user.session_id ? Number(user.session_id) : null;
+
                 const { error: queueError } = await supabaseClient
                     .from('certificates_queue')
                     .insert([{
                         registration_id: String(user.id).trim(),
+                        session_id: userSessionId,                        // ✅ แก้ไข: บันทึกข้อมูลรหัสรอบเรียน
                         course_key: String(user.course_key).trim(),
                         full_name_en: finalFullNameEn,
                         training_date: formattedTrainingDate, 
+                        checked_in_date: nowTime,                         // ✅ แก้ไข: สแตมป์เวลาเริ่มต้นลงคิวเพื่อใช้ประมวลผลคิวประจำวัน
                         pdf_status: "คิวว่าง"
                     }]);
                 if (queueError) throw queueError;
@@ -329,16 +334,21 @@
 
                 courseCard.innerHTML = `
                     <div class="alert alert-success border-success text-center mb-0 py-3 fw-bold">
-                        <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จ! ส่งข้อมูลเข้าคิวเตรียมพิมพ์ใบประกาศแล้ว
+                        <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จ! ระบบลงคิวและบันทึกข้อมูลเรียบร้อยแล้ว
                     </div>`;
 
                 user.is_checked_in = true;
             } 
             // ==========================================
-            // 🌙 [โหมดเช็คเอาท์ - OUT]: เป็นจุดทริกเกอร์เรียกคำสั่งยิงไปที่ GAS คอร์สนั้นๆ
+            // 🌙 [โหมดเช็คเอาท์ - OUT]: ส่งข้อมูลข้ามไปทริกเกอร์ระบบ GAS สั่งสร้างใบประกาศ
             // ==========================================
             else {
-                // เลือกส่งลิงก์ API แยกตามประเภทหลักสูตร BLS หรือ STB
+                const { error: checkoutUpdateError } = await supabaseClient
+                    .from('registrations')
+                    .update({ is_checked_out: true, checked_out_at: nowTime })
+                    .eq('id', user.id);
+                if (checkoutUpdateError) throw checkoutUpdateError;
+
                 let targetCertApi = CHECKIN_API_URL; 
                 const currentCourseKeyUpper = String(user.course_key).toUpperCase();
                 
@@ -348,18 +358,32 @@
                     targetCertApi = LIVE_STB_API;
                 }
 
-                // 🚀 ยิงคำสั่งไปจุดชนวนระบบหลังบ้าน (GAS จะทำหน้าที่จัดการ 2 ตารางใน Supabase และเขียนลงชีตเอง)
-                const response = await fetch(targetCertApi, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                        action: "checkOutSuccess",
-                        id: String(user.id).trim(),
-                        course_key: String(user.course_key).trim()
-                    })
-                });
+                let pdfUrl = "";
 
-                // บันทึก Log การสั่งเช็คเอาท์ลงในชีตศูนย์กลางหลัก
+                try {
+                    const response = await fetch(targetCertApi, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({
+                            action: "checkOutSuccess",
+                            id: String(user.id).trim(),
+                            session_id: user.session_id ? String(user.session_id).trim() : "",
+                            course_key: String(user.course_key).trim()
+                        })
+                    });
+
+                    const resText = await response.text();
+                    try {
+                        const resJson = JSON.parse(resText);
+                        if (resJson.pdfUrl) pdfUrl = resJson.pdfUrl;
+                        else if (resJson.url) pdfUrl = resJson.url;
+                    } catch(e) {
+                        console.log("Response หลังบ้านไม่ส่งค่าคีย์ URL กลับมาตรงๆ:", resText);
+                    }
+                } catch (apiErr) {
+                    console.error("GAS Connection Error:", apiErr);
+                }
+
                 try {
                     await fetch(CHECKIN_API_URL, {
                         method: 'POST',
@@ -373,27 +397,13 @@
                     });
                 } catch(gasErr) { console.error("GAS Sync Checkout Error:", gasErr); }
 
-                // ดักรับ Response แปลงเป็น JSON เพื่อคว้า URL ลิงก์ PDF ใบประกาศ
-                const resText = await response.text();
-                let pdfUrl = "";
-
-                try {
-                    const resJson = JSON.parse(resText);
-                    if (resJson.pdfUrl) pdfUrl = resJson.pdfUrl;
-                    else if (resJson.url) pdfUrl = resJson.url;
-                } catch(e) {
-                    console.log("Response หลังบ้านไม่ส่งค่าคีย์ URL กลับมาตรงๆ:", resText);
-                }
-
-                // สั่งเปิดเอกสารใบประกาศขึ้นหน้าจอทันทีถ้าเจอลิงก์ส่งคืนกลับมา
                 if (pdfUrl) {
                     window.open(pdfUrl, '_blank');
                     Swal.fire('สำเร็จ', 'บันทึกข้อมูลเช็คเอาท์และกำลังเปิดไฟล์ใบประกาศ...', 'success');
                 } else {
-                    Swal.fire('สำเร็จ', 'บันทึกข้อมูลเช็คเอาท์ลงระบบและสั่งพิมพ์ใบประกาศเรียบร้อยแล้ว', 'success');
+                    Swal.fire('สำเร็จ', 'บันทึกข้อมูลเช็คเอาท์และสั่งพิมพ์ใบประกาศเรียบร้อยแล้ว', 'success');
                 }
 
-                // เปลี่ยน UI เป็นเช็คเอาท์เสร็จสิ้น
                 courseCard.innerHTML = `
                     <div class="alert alert-info border-info text-center mb-0 py-3 fw-bold">
                         <i class="fas fa-graduation-cap me-1"></i> เช็คเอาท์และสั่งพิมพ์ใบประกาศสำหรับหลักสูตร [${user.course_key}] สำเร็จแล้ว!

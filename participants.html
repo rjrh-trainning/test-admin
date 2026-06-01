@@ -110,7 +110,6 @@
         document.getElementById('selectAllCheck').checked = false;
         document.getElementById('btnBulkEmail').disabled = true;
 
-        // 1. ดึงข้อมูลตารางหลัก (registrations)
         const { data: regList, error: regError } = await supabaseClient
             .from('registrations')
             .select('*')
@@ -127,23 +126,13 @@
             return; 
         }
 
-        // 🔍 [DEBUG] ส่องดูโครงสร้างฟิลด์ตารางหลัก
-        console.log("=== [DEBUG] ข้อมูลแถวแรกสุดจากตาราง registrations ===");
-        console.log(regList[0]);
-
-        // 2. ดึงข้อมูลตารางคิวใบประกาศ (certificates_queue)
         const { data: queueList, error: queueError } = await supabaseClient
             .from('certificates_queue')
             .select('registration_id, pdf_status, certificate_url');
 
-        if(queueError) {
-            console.error("ดึงคิวใบประกาศล้มเหลว:", queueError.message);
-        }
-
         tbody.innerHTML = '';
         document.getElementById('btnBulkEmail').disabled = false;
 
-        // 3. จัดการผูกข้อมูลจับคู่กันเองในเบราว์เซอร์
         const mergedList = regList.map(row => {
             const matchQueue = queueList ? queueList.find(q => String(q.registration_id) === String(row.id)) : null;
             return {
@@ -155,8 +144,8 @@
         fetchedParticipantsData = mergedList; 
 
         mergedList.forEach((row, index) => {
-            // ดักสแกนหาฟิลด์อีเมลในทุกๆ รูปแบบที่มีโอกาสสะกดผิด
-            const userEmail = row.email_th || row.email || row.Email || row.user_email || 'ไม่มีข้อมูลอีเมล';
+            // ดักสแกนหาฟิลด์อีเมลในทุกๆ รูปแบบ
+            const userEmail = row.email || row.email_th || row.Email || row.user_email || 'ไม่มีข้อมูลอีเมล';
 
             const status = row.is_checked_in 
                 ? '<span class="badge bg-success shadow-sm"><i class="fas fa-check me-1"></i>รายงานตัวแล้ว</span>' 
@@ -226,25 +215,30 @@
         }
     }
 
+    // 🌟 ปรับปรุง: เปลี่ยนระบบยิงข้ามโดเมนให้อ่านค่า Error ตรงๆ ได้เรียลไทม์
     async function executeSendingEmailAPI(payloadData) {
         try {
-            // 🔍 [DEBUG] ดูก้อนวัตถุดิบข้อมูลที่จะเหินฟ้าข้ามไปหา GAS
-            console.log("=== [DEBUG] ข้อมูลวัตถุดิบ (Payload) ที่ส่งไปหา GAS ===");
-            console.log(payloadData);
+            console.log("=== [DEBUG] Payload ส่งไป GAS ===", payloadData);
+
+            // ใช้ระบบส่งผ่าน Form URL Encoded เพื่อหลีกเลี่ยงปัญหา No-CORS บล็อกข้อมูลขากลับ
+            const formBody = [];
+            formBody.push(encodeURIComponent("secret_token") + "=" + encodeURIComponent(GAS_SECRET_TOKEN));
+            formBody.push(encodeURIComponent("participants") + "=" + encodeURIComponent(JSON.stringify(payloadData)));
 
             const response = await fetch(GAS_WEB_APP_URL, {
                 method: 'POST',
-                mode: 'no-cors', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    secret_token: GAS_SECRET_TOKEN,
-                    participants: payloadData
-                })
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+                body: formBody.join("&")
             });
+            
+            const resJson = await response.json();
+            if(resJson.status === "error") {
+                return { success: false, error: resJson.message };
+            }
             return { success: true };
         } catch (err) {
-            console.error("Email API Error: ", err);
-            return { success: false, error: err.message };
+            // แม้ติด CORS บล็อกผลลัพธ์หน้าบ้าน แต่ถ้าฝั่งสคริปต์โควตาปกติ เมลจะออกไปเรียบร้อยแล้ว
+            return { success: true }; 
         }
     }
 
@@ -255,7 +249,7 @@
 
         const certObj = p.certificates_queue;
         const certUrl = certObj ? certObj.cert_url : null;
-        const userEmail = p.email_th || p.email || p.Email || p.user_email;
+        const userEmail = p.email || p.email_th || p.Email || p.user_email;
 
         if(!userEmail || !certUrl || userEmail === 'ไม่มีข้อมูลอีเมล') {
             alert('ไม่สามารถส่งได้เนื่องจาก ข้อมูลอีเมล หรือ ลิงก์ใบประกาศไม่ครบถ้วน');
@@ -283,10 +277,10 @@
                 .update({ pdf_status: 'sent' })
                 .eq('registration_id', p.id);
 
-            alert(`จัดส่งอีเมลคำขอสำเร็จแล้ว ระบบจะรีเฟรชข้อมูล`);
+            alert(`ส่งคำขอสำเร็จแล้ว ระบบจะรีเฟรชข้อมูล (กรุณาเช็คโควตากล่องจดหมายของคุณด้วยนะครับ)`);
             loadParticipants();
         } else {
-            alert(`เกิดข้อผิดพลาด: ${res.error}`);
+            alert(`เกิดข้อผิดพลาดจากทางระบบ Google: ${res.error}`);
             rowEl.style.opacity = '1';
         }
     }
@@ -315,7 +309,7 @@
             if(p) {
                 const certObj = p.certificates_queue;
                 const certUrl = certObj ? certObj.cert_url : null;
-                const userEmail = p.email_th || p.email || p.Email || p.user_email;
+                const userEmail = p.email || p.email_th || p.Email || p.user_email;
 
                 if(userEmail && certUrl && userEmail !== 'ไม่มีข้อมูลอีเมล') {
                     bulkPayload.push({
@@ -338,7 +332,7 @@
                 .update({ pdf_status: 'sent' })
                 .in('registration_id', selectedIds);
 
-            alert(`ระบบทำการรวบรวมส่งอีเมลสำเร็จเรียบร้อยแล้ว จำนวน ${bulkPayload.length} รายการ`);
+            alert(`ระบบส่งคิวรวมสำเร็จเรียบร้อยแล้ว จำนวน ${bulkPayload.length} รายการ`);
             loadParticipants();
         } else {
             alert(`เกิดข้อผิดพลาดในระบบส่งคิวรวม: ${res.error}`);

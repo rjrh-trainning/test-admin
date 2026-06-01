@@ -72,7 +72,6 @@
 <script src="config.js"></script>
 
 <script>
-    // 🌟 กำหนดค่าคอนฟิกเชื่อมต่อไปยัง GAS Web App
     const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx6o8_8Q2bA6z1shuNJUqPq10TA9w0GUm5vm__sUjcQDpuudR_Ck7MsXrrnEh6HM1I/exec";
     const GAS_SECRET_TOKEN = "RJRH_E_Cert_Secure_Pass_2026_!x"; 
 
@@ -95,7 +94,6 @@
         });
     }
 
-    // 🌟 เวอร์ชันปรับปรุง: ดึงข้อมูลแยกตารางแล้วใช้ JavaScript แมปปิ้งกันเองหน้าบ้านเพื่อลด Error ความสัมพันธ์ (No Foreign Key Required)
     async function loadParticipants() {
         const selectEl = document.getElementById('reportSessionSelect');
         const sessionId = selectEl.value; 
@@ -112,7 +110,7 @@
         document.getElementById('selectAllCheck').checked = false;
         document.getElementById('btnBulkEmail').disabled = true;
 
-        // 1. ดึงข้อมูลรายชื่อผู้สมัครจากตารางหลักตามรอบ (registrations)
+        // 1. ดึงข้อมูลรายชื่อผู้สมัครตารางหลัก (registrations)
         const { data: regList, error: regError } = await supabaseClient
             .from('registrations')
             .select('*')
@@ -129,24 +127,24 @@
             return; 
         }
 
-        // 2. ดึงข้อมูลสถานะและลิงก์จากตารางคิวใบประกาศ (certificates_queue)
+        // 2. 🌟 แก้ไข: ดึงฟิลด์ตามชื่อจริงใน Supabase คือ certificate_url
         const { data: queueList, error: queueError } = await supabaseClient
             .from('certificates_queue')
-            .select('registration_id, pdf_status, cert_url');
+            .select('registration_id, pdf_status, certificate_url');
 
         if(queueError) {
-            console.error("ดึงคิวใบประกาศล้มเหลว แต่ระบบจะทำงานต่อโดยคิดว่ายังไม่ได้สร้าง:", queueError.message);
+            console.error("ดึงคิวใบประกาศล้มเหลว:", queueError.message);
         }
 
         tbody.innerHTML = '';
         document.getElementById('btnBulkEmail').disabled = false;
 
-        // 3. จัดการผูกข้อมูลจับคู่กันเองในเบราว์เซอร์
+        // 3. 🌟 แก้ไข: แมปชื่อจาก certificate_url ข้ามมารองรับโครงสร้างระบบหน้าบ้านเดิม
         const mergedList = regList.map(row => {
             const matchQueue = queueList ? queueList.find(q => String(q.registration_id) === String(row.id)) : null;
             return {
                 ...row,
-                certificates_queue: matchQueue ? { pdf_status: matchQueue.pdf_status, cert_url: matchQueue.cert_url } : null
+                certificates_queue: matchQueue ? { pdf_status: matchQueue.pdf_status, cert_url: matchQueue.certificate_url } : null
             };
         });
 
@@ -170,11 +168,14 @@
             let certBadge = '';
             let actionBtn = '';
 
-            if (pdfStatus === 'sent') {
+            // 4. 🌟 แก้ไข: เพิ่มเงื่อนไขดักจับทั้งภาษาอังกฤษ ('sent') และภาษาไทย ('ส่งสำเร็จ')
+            if (pdfStatus === 'sent' || pdfStatus === 'ส่งสำเร็จ') {
                 certBadge = `<span class="badge badge-status bg-success text-white"><i class="fas fa-envelope-open-text me-1"></i> ส่งอีเมลแล้ว</span>`;
                 actionBtn = `<a href="${certUrl}" target="_blank" class="btn btn-sm btn-outline-secondary" title="ดูไฟล์บน Drive"><i class="fab fa-google-drive"></i></a>
                              <button class="btn btn-sm btn-outline-primary ms-1" onclick="sendSingleEmail('${row.id}')" title="ส่งอีเมลซ้ำ"><i class="fas fa-sync-alt"></i></button>`;
-            } else if (certUrl && certUrl !== '') {
+            
+            // 5. 🌟 แก้ไข: ดักสถานะ "ออกสำเร็จ" จากตารางคิวจริง เพื่อให้แสดงผลขึ้นปุ่มพร้อมส่งทันที
+            } else if (pdfStatus === 'ออกสำเร็จ' || (certUrl && certUrl !== '')) {
                 certBadge = `<span class="badge badge-status bg-info text-dark fw-bold"><i class="fas fa-file-pdf me-1"></i> สร้างแล้ว (พร้อมส่ง)</span>`;
                 actionBtn = `<a href="${certUrl}" target="_blank" class="btn btn-sm btn-success text-white" title="ดูไฟล์ใบประกาศ"><i class="fas fa-eye"></i></a>
                              <button class="btn btn-sm btn-primary ms-1" onclick="sendSingleEmail('${row.id}')" title="กดส่งอีเมลคนนี้"><i class="fas fa-paper-plane"></i></button>`;
@@ -280,7 +281,7 @@
         }
     }
 
-    // 2️⃣ ส่งอีเมลแบบกลุ่ม (Bulk Send) พร้อมระบบอัปเดตความเร็วสูงในคำสั่งเดียว
+    // 2️⃣ ส่งอีเมลแบบกลุ่ม (Bulk Send)
     async function sendBulkEmails() {
         const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
         if(checkedBoxes.length === 0) {
@@ -321,7 +322,6 @@
 
         const res = await executeSendingEmailAPI(bulkPayload);
         if(res.success) {
-            // อัปเดตสถานะทุกคนในกลุ่มพร้อมกันในคำสั่งเดียวผ่าน .in()
             await supabaseClient
                 .from('certificates_queue')
                 .update({ pdf_status: 'sent' })

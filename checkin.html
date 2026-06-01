@@ -52,7 +52,7 @@
         <div class="card p-4 shadow-sm">
             <h6 class="fw-bold text-muted mb-3">พิมพ์รหัสด้วยตัวเอง (Manual Search)</h6>
             <div class="input-group">
-                <input type="text" id="searchInput" class="form-control form-control-lg bg-light" placeholder="กรอกรหัสลงทะเบียน 8 หลัก หรือเบอร์โทรศัพท์">
+                <input text="text" id="searchInput" class="form-control form-control-lg bg-light" placeholder="กรอกรหัสลงทะเบียน 8 หลัก หรือเบอร์โทรศัพท์">
                 <button class="btn btn-primary px-4" id="btnManualSubmit" onclick="processManualInput()"><i class="fas fa-search"></i> ค้นหา</button>
             </div>
             <div class="loader" id="searchLoader"><div class="spinner-border text-primary"></div></div>
@@ -73,7 +73,7 @@
 
     const CHECKIN_API_URL = typeof GOOGLE_SHEET_API !== 'undefined' ? GOOGLE_SHEET_API : "https://script.google.com/macros/s/AKfycbw1bS3fjGQngjLdKssc8yWzmbQ1gKOvTvUxraCU2eIHNxjvyyAj3iIqGcey_ETZK3pk/exec";
     const LIVE_BLS_API = "https://script.google.com/macros/s/AKfycbxeH8fwOwWeOh83K5zORNVtq5O1ZnNLZDAB79Ic2wyJWZjWRK9frNkD6_dRs_jl6gNVoA/exec";
-    const LIVE_STB_API = "https://script.google.com/macros/s/AKfycbwPVTBu8ykhFvQQ0vCmAamXikaUC-wAA7DHI7pa1k0Y50sGK2BrLNXYLFcA9kUh76Fh/exec";
+    const LIVE_STB_API = "https://script.google.com/macros/s/AKfycby0ebBHlmguiJX9RYX7cBhKV7Cni42Xn6IsJfbjvS2EIZFrBJpu31fI2gQ2Xm5cOEh/exec";
 
     window.addEventListener('DOMContentLoaded', async () => {
         if (typeof checkAuthGuard === 'function') {
@@ -246,7 +246,7 @@
                     } else {
                         htmlContent += `
                             <button class="btn btn-print-cert btn-sm w-100 fw-bold mt-3 py-2.5 shadow-sm" id="btn-action-${index}" onclick="commitCheckInSpecific(${index}, 'OUT')">
-                                <i class="fas fa-print me-1"></i> สั่งพิมพ์ใบประกาศสำหรับคอร์สนี้
+                                <i class="fas fa-sign-out-alt me-1"></i> บันทึกเช็คเอาท์เข้าคิวรับใบประกาศ
                             </button>`;
                     }
                 }
@@ -338,7 +338,7 @@
                 user.is_checked_in = true;
             } 
             // ==========================================
-            // 🌙 [โหมดเช็คเอาท์ - OUT]: บันทึกเวลาเช็คเอาท์ลง Supabase + สั่ง GAS หลังบ้านแบบปลอดภัย
+            // 🌙 [โหมดเช็คเอาท์ - OUT]: เข้าคิวระบบ Async เบาหวิว รันเสร็จใน 0.5 วินาที
             // ==========================================
             else {
                 // 1. สั่งบันทึกข้อมูลเวลาเช็คเอาท์กลับไปยัง Supabase ตาราง registrations ทันที
@@ -348,34 +348,19 @@
                     .eq('id', user.id);
                 if (checkoutUpdateError) throw checkoutUpdateError;
 
-                // 2. คัดแยกปลายทาง: เช็คเงื่อนไขคำว่า "STB" ขึ้นเป็นอันดับแรกสุด ป้องกันลоจิกซ้ำซ้อนดักแย่งคำสั่ง
-                let targetCertApi = CHECKIN_API_URL; 
-                const currentCourseKeyUpper = String(user.course_key).toUpperCase();
+                // 2. แปลงโครงสร้างประเภทข้อมูลรหัสรอบเรียนให้แม่นยำตรงกับ Supabase int8
+                let userSessionId = user.session_id ? Number(user.session_id) : null;
+
+                // 3. 🚀 ยิงคำสั่งอัปเดตเปลี่ยนค่าสถานะคิวบนตารางเป็น "รอเจน" เพื่อฝากงานเข้าระบบออโต้หลังบ้าน
+                const { error: queueUpdateError } = await supabaseClient
+                    .from('certificates_queue')
+                    .update({ pdf_status: "รอเจน" })
+                    .eq('registration_id', String(user.id).trim())
+                    .eq('session_id', userSessionId);
                 
-                if (currentCourseKeyUpper.includes("STB")) {
-                    targetCertApi = LIVE_STB_API;
-                } else if (currentCourseKeyUpper.includes("BLS") || currentCourseKeyUpper.includes("BCLS")) {
-                    targetCertApi = LIVE_BLS_API;
-                }
+                if (queueUpdateError) throw queueUpdateError;
 
-                // 3. ยิงคำสั่งสร้างใบประกาศนียบัตรไปยังระบบ GAS หลังบ้าน (เปิดโหมด 'no-cors' เพื่อเคลียร์ปัญหาสิทธิ์ความปลอดภัย)
-                try {
-                    await fetch(targetCertApi, {
-                        method: 'POST',
-                        mode: 'no-cors', // 🚀 ปลดล็อก CORS Blocked และแก้ปัญหาโค้ด Crash กลางคันสำเร็จ
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify({
-                            action: "checkOutSuccess",
-                            id: String(user.id).trim(),
-                            session_id: user.session_id ? String(user.session_id).trim() : "",
-                            course_key: String(user.course_key).trim()
-                        })
-                    });
-                } catch (apiErr) {
-                    console.error("การติดต่อกับระบบออกใบประกาศหลังบ้านขัดข้อง:", apiErr);
-                }
-
-                // 4. บันทึกประวัติ Log การทำงานส่งเข้า Google Sheet ส่วนกลาง
+                // 4. บันทึกประวัติ Log การเช็คเอาท์ส่งเข้า Google Sheet ส่วนกลาง (รันโหมดเบาไม่ดึงเวลา)
                 try {
                     await fetch(CHECKIN_API_URL, {
                         method: 'POST',
@@ -389,17 +374,18 @@
                     });
                 } catch(gasErr) { console.error("GAS Log Error:", gasErr); }
 
-                // 5. แสดงผลตอบรับหน้างานสำเร็จ
+                // 5. พ่นข้อความแสดงป๊อปอัปสำเร็จทันทีภายใน 0.5 วินาที เพื่อให้สตาฟฟ์หน้างานสแกนคนต่อไปต่อได้ทันที
                 Swal.fire({
                     title: 'บันทึกเช็คเอาท์สำเร็จ!',
-                    text: 'ระบบได้รับข้อมูลเวลาและกำลังประมวลผลสร้างใบประกาศเบื้องหลังเรียบร้อยแล้ว',
+                    text: 'นำรายชื่อเข้าคิวระบบพิมพ์วุฒิบัตรเบื้องหลังเรียบร้อยแล้ว',
                     icon: 'success',
-                    confirmButtonColor: '#071f54'
+                    timer: 1500, // ปิดหน้าต่างเด้งออโต้ใน 1.5 วินาทีเพื่อความเร็วสูงสุด
+                    showConfirmButton: false
                 });
 
                 courseCard.innerHTML = `
                     <div class="alert alert-info border-info text-center mb-0 py-3 fw-bold">
-                        <i class="fas fa-graduation-cap me-1"></i> เช็คเอาท์และสั่งพิมพ์ใบประกาศสำหรับหลักสูตร [${user.course_key}] สำเร็จแล้ว!
+                        <i class="fas fa-graduation-cap me-1"></i> เช็คเอาท์และนำเข้าคิวพิมพ์ใบประกาศหลักสูตร [${user.course_key}] เรียบร้อยแล้ว!
                     </div>`;
 
                 user.is_checked_out = true;

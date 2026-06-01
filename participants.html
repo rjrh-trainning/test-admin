@@ -21,7 +21,7 @@
     <nav class="navbar navbar-dark shadow-sm">
         <div class="container d-flex justify-content-between align-items-center">
             <span class="navbar-brand fw-bold d-flex align-items-center">
-                <i class="fas fa-list me-2"></i> RJRH - ระบบคิวส่งใบประกาศนียบัตรอัตโนมัติ
+                <i class="fas fa-list me-2"></i> RJRH - บัญชีรายชื่อผู้สมัครและส่งใบประกาศ
             </span>
             <a class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold" href="index.html"><i class="fas fa-arrow-left me-1"></i> กลับหน้าเมนู</a>
         </div>
@@ -38,8 +38,8 @@
                     </select>
                 </div>
                 <div class="col-md-5 text-md-end mt-3 mt-md-0">
-                    <button id="btnBulkEmail" class="btn btn-success btn-lg rounded-pill fw-bold shadow-sm" onclick="sendBulkEmailsBatch()" disabled>
-                        <i class="fas fa-paper-plane me-2"></i> สั่งส่งอีเมลรอบนี้ (จำกัดรอบละ 40 คน)
+                    <button id="btnBulkEmail" class="btn btn-primary btn-lg rounded-pill fw-bold shadow-sm" onclick="sendBulkEmails()" disabled>
+                        <i class="fas fa-paper-plane me-2"></i> ส่งอีเมลใบประกาศ (ที่เลือก)
                     </button>
                 </div>
             </div>
@@ -48,6 +48,9 @@
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr>
+                            <th width="50" class="text-center">
+                                <input class="form-check-input" type="checkbox" id="selectAllCheck" onchange="toggleSelectAll(this)">
+                            </th>
                             <th width="60" class="text-center">ลำดับ</th>
                             <th>ชื่อ-นามสกุล (TH / EN) / อีเมล</th>
                             <th width="140" class="text-center">สิทธิ์ภาพถ่าย (PDPA)</th>
@@ -57,7 +60,7 @@
                         </tr>
                     </thead>
                     <tbody id="participantList">
-                        <tr><td colspan="6" class="text-center text-muted py-4">กรุณาเลือกรอบอบรมด้านบนเพื่อแสดงรายชื่อ</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-4">กรุณาเลือกรอบอบรมด้านบนเพื่อแสดงรายชื่อ</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -72,6 +75,9 @@
     const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx6o8_8Q2bA6z1shuNJUqPq10TA9w0GUm5vm__sUjcQDpuudR_Ck7MsXrrnEh6HM1I/exec";
     const GAS_SECRET_TOKEN = "RJRH_E_Cert_Secure_Pass_2026_!x"; 
 
+    let currentSessionName = ""; 
+    let fetchedParticipantsData = []; 
+
     window.addEventListener('DOMContentLoaded', async () => {
         if (typeof checkAuthGuard === 'function') { await checkAuthGuard(); }
         loadSessionsForReport();
@@ -84,7 +90,7 @@
         sel.innerHTML = '<option value="">-- เลือกรอบอบรม --</option>';
         sessions.forEach(s => { 
             let sessionDate = s.training_date || s.date || "ไม่ระบุวันที่";
-            sel.innerHTML += `<option value="${s.id}">${s.name} (${sessionDate})</option>`; 
+            sel.innerHTML += `<option value="${s.id}" data-name="[${s.course_key}] ${s.name}">${s.name} (${sessionDate})</option>`; 
         });
     }
 
@@ -92,90 +98,210 @@
         const selectEl = document.getElementById('reportSessionSelect');
         const sessionId = selectEl.value; 
         if(!sessionId) {
-            document.getElementById('participantList').innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">กรุณาเลือกรอบอบรมด้านบนเพื่อแสดงรายชื่อ</td></tr>';
+            document.getElementById('participantList').innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">กรุณาเลือกรอบอบรมด้านบนเพื่อแสดงรายชื่อ</td></tr>';
             document.getElementById('btnBulkEmail').disabled = true;
             return;
         }
+
+        currentSessionName = selectEl.options[selectEl.selectedIndex].getAttribute('data-name');
         
         const tbody = document.getElementById('participantList'); 
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลดสถานะข้อมูล...</td></tr>';
-        document.getElementById('btnBulkEmail').disabled = false;
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลดสถานะข้อมูล...</td></tr>';
+        document.getElementById('selectAllCheck').checked = false;
+        document.getElementById('btnBulkEmail').disabled = true;
 
         const { data: regList, error: regError } = await supabaseClient.from('registrations').select('*').eq('session_id', sessionId).order('created_at', { ascending: true });
         if(regError || !regList || regList.length === 0) { 
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">ไม่พบข้อมูลผู้ลงทะเบียน</td></tr>'; 
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">ไม่พบข้อมูลผู้ลงทะเบียน</td></tr>'; 
             return; 
         }
 
         const { data: queueList } = await supabaseClient.from('certificates_queue').select('registration_id, pdf_status, certificate_url');
 
         tbody.innerHTML = '';
-        let pendingCount = 0;
+        let mergedList = [];
 
-        regList.forEach((row, index) => {
+        regList.forEach((row) => {
             const matchQueue = queueList ? queueList.find(q => String(q.registration_id) === String(row.id)) : null;
             const userEmail = row.email || row.email_th || row.Email || 'ไม่มีข้อมูลอีเมล';
             const pdfStatus = matchQueue ? matchQueue.pdf_status : 'none';
             const certUrl = matchQueue ? matchQueue.certificate_url : null;
 
-            let certBadge = `<span class="badge badge-status bg-warning text-dark"><i class="fas fa-clock me-1"></i> ยังไม่สร้าง</span>`;
-            if (pdfStatus === 'sent' || pdfStatus === 'ส่งสำเร็จ') {
-                certBadge = `<span class="badge badge-status bg-success text-white"><i class="fas fa-check-circle me-1"></i> ส่งสำเร็จแล้ว</span>`;
-            } else if (certUrl) {
-                certBadge = `<span class="badge badge-status bg-info text-dark fw-bold"><i class="fas fa-file-pdf me-1"></i> รอส่งคิวอีเมล</span>`;
-                pendingCount++;
+            mergedList.push({
+                ...row,
+                user_email: userEmail,
+                pdf_status: pdfStatus,
+                cert_url: certUrl
+            });
+        });
+
+        fetchedParticipantsData = mergedList;
+
+        mergedList.forEach((row, index) => {
+            let certBadge = '';
+            let actionBtn = '';
+
+            // ระบบ Badge และ ปุ่มกดควบคุมรายคนตามเงื่อนไขสเตตัสในเบส
+            if (row.pdf_status === 'sent' || row.pdf_status === 'ส่งสำเร็จ') {
+                certBadge = `<span class="badge badge-status bg-success text-white"><i class="fas fa-envelope-open-text me-1"></i> ส่งอีเมลแล้ว</span>`;
+                actionBtn = `<a href="${row.cert_url}" target="_blank" class="btn btn-sm btn-outline-secondary" title="ดูไฟล์บน Drive"><i class="fab fa-google-drive"></i></a>
+                             <button class="btn btn-sm btn-outline-primary ms-1" onclick="sendSingleEmail('${row.id}')" title="ส่งอีเมลซ้ำ"><i class="fas fa-sync-alt"></i></button>`;
+            } else if (row.cert_url && row.user_email !== 'ไม่มีข้อมูลอีเมล') {
+                certBadge = `<span class="badge badge-status bg-info text-dark fw-bold"><i class="fas fa-file-pdf me-1"></i> สร้างแล้ว (พร้อมส่ง)</span>`;
+                actionBtn = `<a href="${row.cert_url}" target="_blank" class="btn btn-sm btn-success text-white" title="ดูไฟล์ใบประกาศ"><i class="fas fa-eye"></i></a>
+                             <button class="btn btn-sm btn-primary ms-1" onclick="sendSingleEmail('${row.id}')" title="กดส่งอีเมลคนนี้"><i class="fas fa-paper-plane"></i></button>`;
+            } else {
+                certBadge = `<span class="badge badge-status bg-warning text-dark"><i class="fas fa-clock me-1"></i> ยังไม่สร้าง</span>`;
+                actionBtn = `<button class="btn btn-sm btn-light" disabled title="ยังไม่มีไฟล์ใบประกาศบน Drive"><i class="fas fa-ban"></i></button>`;
             }
 
+            let prefixStr = row.prefix ? row.prefix + " " : "";
+
             tbody.innerHTML += `
-                <tr>
+                <tr id="row_${row.id}">
+                    <td class="text-center">
+                        <input class="form-check-input row-checkbox" type="checkbox" value="${row.id}" ${(!row.cert_url || row.user_email === 'ไม่มีข้อมูลอีเมล') ? 'disabled' : ''} onchange="checkBulkButtonState()">
+                    </td>
                     <td class="text-center fw-bold text-muted">${index + 1}</td>
                     <td>
                         <span class="fs-6 fw-bold text-dark">${row.full_name_th || ''}</span><br>
-                        <small class="text-primary"><i class="fas fa-envelope me-1"></i>${userEmail}</small>
+                        <small class="text-muted">${prefixStr}${row.full_name_en || ''}</small><br>
+                        <small class="text-primary"><i class="fas fa-envelope me-1"></i>${row.user_email}</small>
                     </td>
-                    <td class="text-center">${row.photo_consent ? '📸 ถ่ายรูปได้' : '❌ ห้ามถ่าย'}</td>
-                    <td class="text-center">${row.is_checked_in ? '✅ มาแล้ว' : '⏳ ยังไม่มา'}</td>
+                    <td class="text-center">${row.photo_consent ? '<span class="text-success">📸 ถ่ายได้</span>' : '<span class="text-danger">❌ ห้ามถ่าย</span>'}</td>
+                    <td class="text-center">${row.is_checked_in ? '<span class="text-success">✅ รายงานตัวแล้ว</span>' : '<span class="text-muted">⏳ ยังไม่มา</span>'}</td>
                     <td class="text-center">${certBadge}</td>
-                    <td class="text-center">
-                        ${certUrl ? `<a href="${certUrl}" target="_blank" class="btn btn-sm btn-light"><i class="fas fa-eye"></i></a>` : '-'}
-                    </td>
+                    <td class="text-center">${actionBtn}</td>
                 </tr>`;
         });
-
-        document.getElementById('btnBulkEmail').innerHTML = `<i class="fas fa-paper-plane me-2"></i> สั่งส่งคิวอีเมลรอบนี้ (ค้างอยู่ ${pendingCount} คน)`;
     }
 
-    async function sendBulkEmailsBatch() {
-        const sessionId = document.getElementById('reportSessionSelect').value;
-        if(!sessionId) return;
+    function toggleSelectAll(master) {
+        const checkboxes = document.querySelectorAll('.row-checkbox');
+        checkboxes.forEach(cb => {
+            if(!cb.disabled) cb.checked = master.checked;
+        });
+        checkBulkButtonState();
+    }
 
-        if(!confirm(`ระบบหลังบ้านกูเกิ้ลจะดึงข้อมูลจริงมาจัดคิวคัดกรอง ยิงส่งอีเมลรอบนี้ออกจำกัดสูงสุดไม่เกิน 40 รายการ ยืนยันคำสั่งหรือไม่?`)) return;
+    function checkBulkButtonState() {
+        const checkedCount = document.querySelectorAll('.row-checkbox:checked').length;
+        const btn = document.getElementById('btnBulkEmail');
+        
+        if(checkedCount > 0) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fas fa-paper-plane me-2"></i> ส่งอีเมลใบประกาศที่เลือก (${checkedCount} คน)`;
+        } else {
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-paper-plane me-2"></i> ส่งอีเมลใบประกาศ (ที่เลือก)`;
+        }
+    }
+
+    async function executeSendingEmailAPI(payloadData) {
+        try {
+            console.log("=== [DEBUG] Payload ส่งไป GAS ===", payloadData);
+            await fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                mode: 'no-cors', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    secret_token: GAS_SECRET_TOKEN,
+                    participants: payloadData
+                })
+            });
+            return { success: true };
+        } catch (err) {
+            console.error("Email API Error: ", err);
+            return { success: false, error: err.message };
+        }
+    }
+
+    // 1️⃣ [ส่งรายคน] ฟังก์ชันกดส่งอีเมลแบบเดี่ยว รายบุคคล
+    async function sendSingleEmail(regId) {
+        const p = fetchedParticipantsData.find(item => String(item.id) === String(regId));
+        if(!p) return;
+
+        if(!confirm(`ยืนยันการจัดส่งอีเมลใบประกาศไปยังคุณ: ${p.full_name_th} ใช่หรือไม่?`)) return;
+
+        const rowEl = document.getElementById(`row_${regId}`);
+        rowEl.style.opacity = '0.5';
+
+        const singlePayload = [{
+            registration_id: p.id,
+            email: p.user_email, 
+            name_th: p.full_name_th,
+            name_en: p.full_name_en,
+            course_name: currentSessionName,
+            drive_url: p.cert_url
+        }];
+
+        const res = await executeSendingEmailAPI(singlePayload);
+        if(res.success) {
+            await supabaseClient
+                .from('certificates_queue')
+                .update({ pdf_status: 'sent' })
+                .eq('registration_id', p.id);
+
+            alert(`จัดส่งอีเมลสำเร็จเรียบร้อยแล้ว`);
+            loadParticipants();
+        } else {
+            alert(`เกิดข้อผิดพลาด: ${res.error}`);
+            rowEl.style.opacity = '1';
+        }
+    }
+
+    // 2️⃣ [ส่งแบบกลุ่ม] ฟังก์ชันคัดเฉพาะรายการที่แอดมินติ๊ก Checkbox ไว้ (และบล็อกความปลอดภัยไม่เกิน 40 คน)
+    async function sendBulkEmails() {
+        const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+        if(checkedBoxes.length === 0) return;
+
+        // 🌟 ตัวดักควบคุมความปลอดภัย: ถ้าเลือกเกิน 40 คน ให้เบรกระบบไว้ก่อนไม่ให้โควตากูเกิ้ลพัง
+        const maxLimit = 40;
+        if(checkedBoxes.length > maxLimit) {
+            alert(`เพื่อความปลอดภัยและป้องกันโควตาอีเมลของ Google เต็ม ระบบจำกัดการส่งได้สูงสุดรอบละไม่เกิน ${maxLimit} คนครับ (ปัจจุบันเลือกไว้ ${checkedBoxes.length} คน) กรุณาเอาติ๊กถูกออกบางส่วนให้ไม่เกิน ${maxLimit} คนครับ`);
+            return;
+        }
+
+        if(!confirm(`คุณต้องการส่งอีเมลใบประกาศหาผู้เข้าอบรมที่คุณเลือกทั้งหมด จำนวน ${checkedBoxes.length} รายชื่อ ใช่หรือไม่?`)) return;
 
         const btn = document.getElementById('btnBulkEmail');
         btn.disabled = true;
-        btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i> กำลังรันคิวจำกัดจำนวน 40 คนบนระบบ Google...`;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i> กำลังดำเนินการส่ง ${checkedBoxes.length} คน...`;
 
-        try {
-            const response = await fetch(GAS_WEB_APP_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, // ปรับให้สัมพันธ์เข้าโครงสร้างความปลอดภัยสูงสุดขากลับ
-                body: JSON.stringify({
-                    secret_token: GAS_SECRET_TOKEN,
-                    session_id: sessionId
-                })
-            });
+        let bulkPayload = [];
+        let selectedIds = [];
 
-            const res = await response.json();
-            if(res.status === "success") {
-                alert(`ดำเนินการสำเร็จ! จัดส่งอีเมลออกจริงเรียบร้อยแล้วจำนวน ${res.sent_count} คน (ยังเหลือค้างคิวรอส่งในระบบอีก ${res.remaining} คน)`);
-            } else {
-                alert(`แจ้งเตือนจากระบบ Google: ${res.message}`);
+        checkedBoxes.forEach(cb => {
+            const regId = cb.value;
+            const p = fetchedParticipantsData.find(item => String(item.id) === String(regId));
+            
+            if(p && p.cert_url && p.user_email !== 'ไม่มีข้อมูลอีเมล') {
+                bulkPayload.push({
+                    registration_id: p.id,
+                    email: p.user_email, 
+                    name_th: p.full_name_th,
+                    name_en: p.full_name_en,
+                    course_name: currentSessionName,
+                    drive_url: p.cert_url
+                });
+                selectedIds.push(p.id);
             }
-        } catch (err) {
-            alert(`ยิงคำสั่งเปิดระบบคิวส่งเมลผ่าน Google Apps Script สำเร็จแล้วเรียบร้อยครับ ระบบหลังบ้านกำลังทยอยสแกนยิงเมลออกให้ทีละ 40 คนนุ่มๆ ครับ!`);
-        }
+        });
 
-        loadParticipants();
+        const res = await executeSendingEmailAPI(bulkPayload);
+        if(res.success) {
+            await supabaseClient
+                .from('certificates_queue')
+                .update({ pdf_status: 'sent' })
+                .in('registration_id', selectedIds);
+
+            alert(`ระบบทำการส่งคิวและปรับสถานะเรียบร้อยรวมทั้งสิ้น ${bulkPayload.length} รายการ`);
+            loadParticipants();
+        } else {
+            alert(`เกิดข้อผิดพลาดในการส่งกลุ่ม: ${res.error}`);
+            btn.disabled = false;
+            checkBulkButtonState();
+        }
     }
 </script>
 </body>

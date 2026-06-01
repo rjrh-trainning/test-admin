@@ -144,7 +144,6 @@
         fetchedParticipantsData = mergedList; 
 
         mergedList.forEach((row, index) => {
-            // ดักสแกนหาฟิลด์อีเมลในทุกๆ รูปแบบ
             const userEmail = row.email || row.email_th || row.Email || row.user_email || 'ไม่มีข้อมูลอีเมล';
 
             const status = row.is_checked_in 
@@ -215,30 +214,24 @@
         }
     }
 
-    // 🌟 ปรับปรุง: เปลี่ยนระบบยิงข้ามโดเมนให้อ่านค่า Error ตรงๆ ได้เรียลไทม์
+    // 🌟 แก้ไขสมานฉันท์กลับมาส่งแบบ JSON ล้วนตามเดิมเพื่อให้ GAS แตกไฟล์ออก
     async function executeSendingEmailAPI(payloadData) {
         try {
             console.log("=== [DEBUG] Payload ส่งไป GAS ===", payloadData);
 
-            // ใช้ระบบส่งผ่าน Form URL Encoded เพื่อหลีกเลี่ยงปัญหา No-CORS บล็อกข้อมูลขากลับ
-            const formBody = [];
-            formBody.push(encodeURIComponent("secret_token") + "=" + encodeURIComponent(GAS_SECRET_TOKEN));
-            formBody.push(encodeURIComponent("participants") + "=" + encodeURIComponent(JSON.stringify(payloadData)));
-
-            const response = await fetch(GAS_WEB_APP_URL, {
+            await fetch(GAS_WEB_APP_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-                body: formBody.join("&")
+                mode: 'no-cors', // กลับมาใช้ no-cors ป้องกันกำแพงฝั่งเบราว์เซอร์สกัดขา
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    secret_token: GAS_SECRET_TOKEN,
+                    participants: payloadData
+                })
             });
-            
-            const resJson = await response.json();
-            if(resJson.status === "error") {
-                return { success: false, error: resJson.message };
-            }
             return { success: true };
         } catch (err) {
-            // แม้ติด CORS บล็อกผลลัพธ์หน้าบ้าน แต่ถ้าฝั่งสคริปต์โควตาปกติ เมลจะออกไปเรียบร้อยแล้ว
-            return { success: true }; 
+            console.error("Email API Error: ", err);
+            return { success: false, error: err.message };
         }
     }
 
@@ -277,10 +270,10 @@
                 .update({ pdf_status: 'sent' })
                 .eq('registration_id', p.id);
 
-            alert(`ส่งคำขอสำเร็จแล้ว ระบบจะรีเฟรชข้อมูล (กรุณาเช็คโควตากล่องจดหมายของคุณด้วยนะครับ)`);
+            alert(`จัดส่งอีเมลคำขอสำเร็จแล้ว ระบบจะรีเฟรชข้อมูล`);
             loadParticipants();
         } else {
-            alert(`เกิดข้อผิดพลาดจากทางระบบ Google: ${res.error}`);
+            alert(`เกิดข้อผิดพลาด: ${res.error}`);
             rowEl.style.opacity = '1';
         }
     }
@@ -332,7 +325,7 @@
                 .update({ pdf_status: 'sent' })
                 .in('registration_id', selectedIds);
 
-            alert(`ระบบส่งคิวรวมสำเร็จเรียบร้อยแล้ว จำนวน ${bulkPayload.length} รายการ`);
+            alert(`ระบบทำการรวบรวมส่งอีเมลสำเร็จเรียบร้อยแล้ว จำนวน ${bulkPayload.length} รายการ`);
             loadParticipants();
         } else {
             alert(`เกิดข้อผิดพลาดในระบบส่งคิวรวม: ${res.error}`);

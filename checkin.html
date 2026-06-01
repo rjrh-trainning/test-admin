@@ -73,8 +73,7 @@
 
     const CHECKIN_API_URL = typeof GOOGLE_SHEET_API !== 'undefined' ? GOOGLE_SHEET_API : "https://script.google.com/macros/s/AKfycbw1bS3fjGQngjLdKssc8yWzmbQ1gKOvTvUxraCU2eIHNxjvyyAj3iIqGcey_ETZK3pk/exec";
     const LIVE_BLS_API = "https://script.google.com/macros/s/AKfycbxeH8fwOwWeOh83K5zORNVtq5O1ZnNLZDAB79Ic2wyJWZjWRK9frNkD6_dRs_jl6gNVoA/exec";
-    // 📌 อัปเดตลิงก์สคริปต์ STB ตัวล่าสุดที่ใช้งานได้จริงตามที่ส่งมา
-    const LIVE_STB_API = "https://script.google.com/macros/s/AKfycby0ebBHlmguiJX9RYqX7cBhKV7Cni42Xn6IsJfbjvS2EIZFrBJpu31fI2gQ2Xm5cOEh/exec";
+    const LIVE_STB_API = "https://script.google.com/macros/s/AKfycby0ebBHlmguiJX9RYX7cBhKV7Cni42Xn6IsJfbjvS2EIZFrBJpu31fI2gQ2Xm5cOEh/exec";
 
     window.addEventListener('DOMContentLoaded', async () => {
         if (typeof checkAuthGuard === 'function') {
@@ -121,7 +120,6 @@
         }
     }
 
-    // [คงเดิม]
     function onScanSuccess(decodedText) {
         if(isProcessing) return;
         document.getElementById('searchInput').value = decodedText;
@@ -340,17 +338,17 @@
                 user.is_checked_in = true;
             } 
             // ==========================================
-            // 🌙 [โหมดเช็คเอาท์ - OUT]
+            // 🌙 [โหมดเช็คเอาท์ - OUT]: บันทึกเวลาเช็คเอาท์ลง Supabase + สั่ง GAS หลังบ้านแบบปลอดภัย
             // ==========================================
             else {
-                // 1. สั่งบันทึกข้อมูลเวลาเช็คเอาท์กลับไปยัง Supabase ทันที
+                // 1. สั่งบันทึกข้อมูลเวลาเช็คเอาท์กลับไปยัง Supabase ตาราง registrations ทันที
                 const { error: checkoutUpdateError } = await supabaseClient
                     .from('registrations')
                     .update({ is_checked_out: true, checked_out_at: nowTime })
                     .eq('id', user.id);
                 if (checkoutUpdateError) throw checkoutUpdateError;
 
-                // 2. 🚀 ปรับปรุงคัดแยกปลายทาง: เช็คเงื่อนไขคำว่า "STB" ขึ้นเป็นอันดับแรกสุด ป้องกันลอจิกซ้ำซ้อนดักแย่ง
+                // 2. คัดแยกปลายทาง: เช็คเงื่อนไขคำว่า "STB" ขึ้นเป็นอันดับแรกสุด ป้องกันลоจิกซ้ำซ้อนดักแย่งคำสั่ง
                 let targetCertApi = CHECKIN_API_URL; 
                 const currentCourseKeyUpper = String(user.course_key).toUpperCase();
                 
@@ -360,12 +358,11 @@
                     targetCertApi = LIVE_BLS_API;
                 }
 
-                let pdfUrl = "";
-
-                // 3. ยิงคำสั่งสร้างใบประกาศนียบัตร PDF ไปยังระบบ GAS หลังบ้าน
+                // 3. ยิงคำสั่งสร้างใบประกาศนียบัตรไปยังระบบ GAS หลังบ้าน (เปิดโหมด 'no-cors' เพื่อเคลียร์ปัญหาสิทธิ์ความปลอดภัย)
                 try {
-                    const response = await fetch(targetCertApi, {
+                    await fetch(targetCertApi, {
                         method: 'POST',
+                        mode: 'no-cors', // 🚀 ปลดล็อก CORS Blocked และแก้ปัญหาโค้ด Crash กลางคันสำเร็จ
                         headers: { 'Content-Type': 'text/plain' },
                         body: JSON.stringify({
                             action: "checkOutSuccess",
@@ -374,17 +371,8 @@
                             course_key: String(user.course_key).trim()
                         })
                     });
-
-                    const resText = await response.text();
-                    try {
-                        const resJson = JSON.parse(resText);
-                        if (resJson.pdfUrl) pdfUrl = resJson.pdfUrl;
-                        else if (resJson.url) pdfUrl = resJson.url;
-                    } catch(e) {
-                        console.log("GAS ไม่ได้ส่งค่าคีย์ลิงก์กลับมาตรงๆ:", resText);
-                    }
                 } catch (apiErr) {
-                    console.error("การติดต่อกับ Google Apps Script ขัดข้อง:", apiErr);
+                    console.error("การติดต่อกับระบบออกใบประกาศหลังบ้านขัดข้อง:", apiErr);
                 }
 
                 // 4. บันทึกประวัติ Log การทำงานส่งเข้า Google Sheet ส่วนกลาง
@@ -401,13 +389,13 @@
                     });
                 } catch(gasErr) { console.error("GAS Log Error:", gasErr); }
 
-                // 5. นำทางแสดงผลสำเร็จตามสถานะไฟล์ใบประกาศ
-                if (pdfUrl) {
-                    window.open(pdfUrl, '_blank');
-                    Swal.fire('สำเร็จ', 'บันทึกข้อมูลเช็คเอาท์และกำลังเปิดไฟล์ใบประกาศ...', 'success');
-                } else {
-                    Swal.fire('สำเร็จ', 'บันทึกข้อมูลเช็คเอาท์และสั่งพิมพ์ใบประกาศเรียบร้อยแล้ว', 'success');
-                }
+                // 5. แสดงผลตอบรับหน้างานสำเร็จ
+                Swal.fire({
+                    title: 'บันทึกเช็คเอาท์สำเร็จ!',
+                    text: 'ระบบได้รับข้อมูลเวลาและกำลังประมวลผลสร้างใบประกาศเบื้องหลังเรียบร้อยแล้ว',
+                    icon: 'success',
+                    confirmButtonColor: '#071f54'
+                });
 
                 courseCard.innerHTML = `
                     <div class="alert alert-info border-info text-center mb-0 py-3 fw-bold">

@@ -72,12 +72,11 @@
 <script src="config.js"></script>
 
 <script>
-    // 🌟 กำหนดค่าคอนฟิกสำหรับเชื่อมต่อไปยัง GAS Web App ของคุณ
-    const GAS_WEB_APP_URL = "วาง_URL_ของ_GAS_WEB_APP_ตรงนี้";
-    const GAS_SECRET_TOKEN = "เปลี่ยน_TOKEN_ลับของคุณตรงนี้"; // ต้องตรงกับในโค้ด GAS
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx6o8_8Q2bA6z1shuNJUqPq10TA9w0GUm5vm__sUjcQDpuudR_Ck7MsXrrnEh6HM1I/exec";
+    const GAS_SECRET_TOKEN = "RJRH_E_Cert_Secure_Pass_2026_!x"; 
 
     let currentSessionName = ""; 
-    let fetchedParticipantsData = []; // เก็บ Data ชุดปัจจุบันไว้ใช้ตอนกดส่งเมล
+    let fetchedParticipantsData = []; 
 
     window.addEventListener('DOMContentLoaded', async () => {
         if (typeof checkAuthGuard === 'function') { await checkAuthGuard(); }
@@ -104,7 +103,6 @@
             return;
         }
 
-        // ดึงชื่อรอบเก็บไว้แนบในอีเมล
         currentSessionName = selectEl.options[selectEl.selectedIndex].getAttribute('data-name');
         
         const tbody = document.getElementById('participantList'); 
@@ -112,7 +110,6 @@
         document.getElementById('selectAllCheck').checked = false;
         document.getElementById('btnBulkEmail').disabled = true;
 
-        // 🌟 ปรับแก้ไขซินแทกซ์ คิวรีดึงข้อมูลแบบ Join ตารางเพื่อรับค่า cert_url และ pdf_status จากตารางคิวใบประกาศ
         const { data: list, error } = await supabaseClient
             .from('registrations')
             .select(`
@@ -136,7 +133,7 @@
             return; 
         }
 
-        fetchedParticipantsData = list; // บันทึกข้อมูลลง Global Variable
+        fetchedParticipantsData = list; 
         document.getElementById('btnBulkEmail').disabled = false;
 
         list.forEach((row, index) => {
@@ -150,8 +147,7 @@
             
             let prefixStr = row.prefix ? row.prefix + " " : "";
 
-            // 🌟 จัดการ UI ของสถานะใบประกาศ (ดึงจาก Object ที่ได้จากการ Join ตารางย่อย)
-            const certObj = row.certificates_queue?.[0] || row.certificates_queue; // รองรับกรณีเป็น Array หรือ Object ตัวเดียว
+            const certObj = row.certificates_queue?.[0] || row.certificates_queue; 
             const pdfStatus = certObj ? certObj.pdf_status : 'none';
             const certUrl = certObj ? certObj.cert_url : null;
 
@@ -190,7 +186,6 @@
         });
     }
 
-    // ฟังก์ชันจัดการการคลิกติ๊กเลือกทั้งหมด (Select All)
     function toggleSelectAll(master) {
         const checkboxes = document.querySelectorAll('.row-checkbox');
         checkboxes.forEach(cb => {
@@ -199,7 +194,6 @@
         checkBulkButtonState();
     }
 
-    // ตรวจสอบสถานะการเปิด/ปิด ปุ่ม Bulk ส่งเมล
     function checkBulkButtonState() {
         const checkedCount = document.querySelectorAll('.row-checkbox:checked').length;
         const btn = document.getElementById('btnBulkEmail');
@@ -210,12 +204,11 @@
         }
     }
 
-    // 🌟 ฟังก์ชันรวมศูนย์สำหรับส่ง Request ไปหาโค้ด GAS
     async function executeSendingEmailAPI(payloadData) {
         try {
             const response = await fetch(GAS_WEB_APP_URL, {
                 method: 'POST',
-                mode: 'no-cors', // ตั้งเพื่อข้ามปัญหา CORS ข้ามโดเมนของระบบ GAS Web App
+                mode: 'no-cors', 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     secret_token: GAS_SECRET_TOKEN,
@@ -229,18 +222,11 @@
         }
     }
 
-    // 🌟 ฟังก์ชันจัดการ อัปเดตสถานะกลับไปตารางคิวที่ Supabase หลังจากยิงเมลออกไปแล้ว
-    async function updateSupabaseStatus(regId) {
-        // อัปเดตตารางย่อยที่มีฟิลด์คิวใบประกาศเป็น 'sent'
-        await supabaseClient
-            .from('certificates_queue')
-            .update({ pdf_status: 'sent' })
-            .eq('registration_id', regId);
-    }
-
-    // 1️⃣ กดส่งอีเมลเดี่ยว รายบุคคล
+    // 1️⃣ กดส่งอีเมลเดี่ยว รายบุคคล (ปรับแก้ไขตัวแปร String และลดกระบวนการคิวรีแล้ว)
     async function sendSingleEmail(regId) {
-        const p = fetchedParticipantsData.find(item => item.id == regId);
+        const p = fetchedParticipantsData.find(item => String(item.id) === String(regId));
+        if(!p) return;
+
         const certObj = p.certificates_queue?.[0] || p.certificates_queue;
         const certUrl = certObj ? certObj.cert_url : null;
 
@@ -265,7 +251,12 @@
 
         const res = await executeSendingEmailAPI(singlePayload);
         if(res.success) {
-            await updateSupabaseStatus(p.id);
+            // อัปเดตสถานะแบบเดี่ยวตรงไปยัง Supabase
+            await supabaseClient
+                .from('certificates_queue')
+                .update({ pdf_status: 'sent' })
+                .eq('registration_id', p.id);
+
             alert(`จัดส่งอีเมลคำขอสำเร็จแล้ว ระบบจะรีเฟรชข้อมูล`);
             loadParticipants();
         } else {
@@ -274,7 +265,7 @@
         }
     }
 
-    // 2️⃣ กดส่งอีเมลแบบกลุ่ม (Bulk Send) ตามกลุ่มเช็คบ็อกซ์ที่ติ๊กเลือกไว้
+    // 2️⃣ กดส่งอีเมลแบบกลุ่ม (ปรับแก้ไขให้เป็นแบบ Bulk Update เพื่อความเร็วขั้นสุดแล้ว)
     async function sendBulkEmails() {
         const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
         if(checkedBoxes.length === 0) {
@@ -293,29 +284,34 @@
 
         checkedBoxes.forEach(cb => {
             const regId = cb.value;
-            const p = fetchedParticipantsData.find(item => item.id == regId);
-            const certObj = p.certificates_queue?.[0] || p.certificates_queue;
-            const certUrl = certObj ? certObj.cert_url : null;
+            const p = fetchedParticipantsData.find(item => String(item.id) === String(regId));
+            
+            if(p) {
+                const certObj = p.certificates_queue?.[0] || p.certificates_queue;
+                const certUrl = certObj ? certObj.cert_url : null;
 
-            if(p && p.email && certUrl) {
-                bulkPayload.push({
-                    registration_id: p.id,
-                    email: p.email,
-                    name_th: p.full_name_th,
-                    name_en: p.full_name_en,
-                    course_name: currentSessionName,
-                    drive_url: certUrl
-                });
-                selectedIds.push(p.id);
+                if(p.email && certUrl) {
+                    bulkPayload.push({
+                        registration_id: p.id,
+                        email: p.email,
+                        name_th: p.full_name_th,
+                        name_en: p.full_name_en,
+                        course_name: currentSessionName,
+                        drive_url: certUrl
+                    });
+                    selectedIds.push(p.id);
+                }
             }
         });
 
         const res = await executeSendingEmailAPI(bulkPayload);
         if(res.success) {
-            // ดำเนินการอัปเดตสถานะผู้ที่ถูกส่งผ่านให้ครบทุกคนในตาราง Supabase
-            for(let id of selectedIds) {
-                await updateSupabaseStatus(id);
-            }
+            // 🌟 ปรับปรุงใหม่: ใช้คำสั่ง .in() เพื่อทำการ Bulk Update ทุกไอดีพร้อมกันในครั้งเดียวแทนการเขียนลูปเรียกซ้ำๆ
+            await supabaseClient
+                .from('certificates_queue')
+                .update({ pdf_status: 'sent' })
+                .in('registration_id', selectedIds);
+
             alert(`ระบบทำการรวบรวมส่งอีเมลสำเร็จเรียบร้อยแล้ว จำนวน ${bulkPayload.length} รายการ`);
             loadParticipants();
         } else {

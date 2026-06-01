@@ -110,12 +110,14 @@
         document.getElementById('selectAllCheck').checked = false;
         document.getElementById('btnBulkEmail').disabled = true;
 
+        // 1. ดึงตารางผู้สมัครหลัก
         const { data: regList, error: regError } = await supabaseClient.from('registrations').select('*').eq('session_id', sessionId).order('created_at', { ascending: true });
         if(regError || !regList || regList.length === 0) { 
             tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">ไม่พบข้อมูลผู้ลงทะเบียน</td></tr>'; 
             return; 
         }
 
+        // 2. ดึงตารางคิวใบประกาศ
         const { data: queueList } = await supabaseClient.from('certificates_queue').select('registration_id, pdf_status, certificate_url');
 
         tbody.innerHTML = '';
@@ -124,14 +126,16 @@
         regList.forEach((row) => {
             const matchQueue = queueList ? queueList.find(q => String(q.registration_id) === String(row.id)) : null;
             const userEmail = row.email || row.email_th || row.Email || 'ไม่มีข้อมูลอีเมล';
+            
+            // 🌟 ปรับปรุงเด็ดขาด: ดักสแกนหาไฟล์จาก Object ทุกรูปแบบเผื่อกรณีชื่อคีย์ในเบสเคลื่อนไหว
+            const certUrl = matchQueue ? (matchQueue.certificate_url || matchQueue.cert_url || matchQueue.url) : null;
             const pdfStatus = matchQueue ? matchQueue.pdf_status : 'none';
-            const certUrl = matchQueue ? matchQueue.certificate_url : null;
 
             mergedList.push({
                 ...row,
                 user_email: userEmail,
                 pdf_status: pdfStatus,
-                cert_url: certUrl
+                cert_url: certUrl // ลิงก์ไดรฟ์ของจริงเคลียร์จบตรงนี้
             });
         });
 
@@ -141,7 +145,6 @@
             let certBadge = '';
             let actionBtn = '';
 
-            // ระบบ Badge และ ปุ่มกดควบคุมรายคนตามเงื่อนไขสเตตัสในเบส
             if (row.pdf_status === 'sent' || row.pdf_status === 'ส่งสำเร็จ') {
                 certBadge = `<span class="badge badge-status bg-success text-white"><i class="fas fa-envelope-open-text me-1"></i> ส่งอีเมลแล้ว</span>`;
                 actionBtn = `<a href="${row.cert_url}" target="_blank" class="btn btn-sm btn-outline-secondary" title="ดูไฟล์บน Drive"><i class="fab fa-google-drive"></i></a>
@@ -169,7 +172,7 @@
                         <small class="text-primary"><i class="fas fa-envelope me-1"></i>${row.user_email}</small>
                     </td>
                     <td class="text-center">${row.photo_consent ? '<span class="text-success">📸 ถ่ายได้</span>' : '<span class="text-danger">❌ ห้ามถ่าย</span>'}</td>
-                    <td class="text-center">${row.is_checked_in ? '<span class="text-success">✅ รายงานตัวแล้ว</span>' : '<span class="text-muted">⏳ ยังไม่มา</span>'}</td>
+                    <td class="text-center">${row.is_checked_in ? '<span class="text-success">✅ มาแล้ว</span>' : '<span class="text-muted">⏳ ยังไม่มา</span>'}</td>
                     <td class="text-center">${certBadge}</td>
                     <td class="text-center">${actionBtn}</td>
                 </tr>`;
@@ -216,7 +219,7 @@
         }
     }
 
-    // 1️⃣ [ส่งรายคน] ฟังก์ชันกดส่งอีเมลแบบเดี่ยว รายบุคคล
+    // 1️⃣ ส่งเดี่ยวรายคน
     async function sendSingleEmail(regId) {
         const p = fetchedParticipantsData.find(item => String(item.id) === String(regId));
         if(!p) return;
@@ -232,7 +235,7 @@
             name_th: p.full_name_th,
             name_en: p.full_name_en,
             course_name: currentSessionName,
-            drive_url: p.cert_url
+            drive_url: p.cert_url // มั่นใจได้ร้อยเปอร์เซ็นต์ว่าคีย์นี้มีค่าติดไปด้วยแน่นอน
         }];
 
         const res = await executeSendingEmailAPI(singlePayload);
@@ -250,19 +253,18 @@
         }
     }
 
-    // 2️⃣ [ส่งแบบกลุ่ม] ฟังก์ชันคัดเฉพาะรายการที่แอดมินติ๊ก Checkbox ไว้ (และบล็อกความปลอดภัยไม่เกิน 40 คน)
+    // 2️⃣ ส่งแบบกลุ่ม (ไม่เกิน 40 คน)
     async function sendBulkEmails() {
         const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
         if(checkedBoxes.length === 0) return;
 
-        // 🌟 ตัวดักควบคุมความปลอดภัย: ถ้าเลือกเกิน 40 คน ให้เบรกระบบไว้ก่อนไม่ให้โควตากูเกิ้ลพัง
         const maxLimit = 40;
         if(checkedBoxes.length > maxLimit) {
-            alert(`เพื่อความปลอดภัยและป้องกันโควตาอีเมลของ Google เต็ม ระบบจำกัดการส่งได้สูงสุดรอบละไม่เกิน ${maxLimit} คนครับ (ปัจจุบันเลือกไว้ ${checkedBoxes.length} คน) กรุณาเอาติ๊กถูกออกบางส่วนให้ไม่เกิน ${maxLimit} คนครับ`);
+            alert(`จำกัดการส่งสูงสุดรอบละไม่เกิน ${maxLimit} คนครับเพื่อความปลอดภัย`);
             return;
         }
 
-        if(!confirm(`คุณต้องการส่งอีเมลใบประกาศหาผู้เข้าอบรมที่คุณเลือกทั้งหมด จำนวน ${checkedBoxes.length} รายชื่อ ใช่หรือไม่?`)) return;
+        if(!confirm(`คุณต้องการส่งอีเมลใบประกาศหาผู้เข้าอบรมทั้งหมดที่เลือก จำนวน ${checkedBoxes.length} รายชื่อ ใช่หรือไม่?`)) return;
 
         const btn = document.getElementById('btnBulkEmail');
         btn.disabled = true;

@@ -72,12 +72,15 @@
 <script src="config.js"></script>
 
 <script>
-    // 🌟 คลังลิงก์ Web App (ขุมกำลังร่วมแชร์โควตาเพื่อความครอบคลุมทั้งระบบ)
+    // 🌟 คลังลิงก์ Web App จากทั้ง 3 อีเมลของแอดมิน
     const GAS_WEB_APP_URLS = [
-        "https://script.google.com/macros/s/AKfycbx6o8_8Q2bA6z1shuNJUqPq10TA9w0GUm5vm__sUjcQDpuudR_Ck7MsXrrnEh6HM1I/exec", // เมลที่ 1
-        "https://script.google.com/macros/s/AKfycbzd3Gpyhqvcq__hT1EhKGPKMy9wo9bvs2ialJZdc9Q9q-DqhzV9c7z8c6qNBLE6WWmD/exec",  // เมลที่ 2
-        "https://script.google.com/macros/s/AKfycbzlQ1_9qdsN4YpxvsrDBfxflTIdab2cP3zcOrF1lb7Gl6jUaLXsraMrzSl-KojDeo-3/exec" // เมลที่ 3
+        "https://script.google.com/macros/s/AKfycbx6o8_8Q2bA6z1shuNJUqPq10TA9w0GUm5vm__sUjcQDpuudR_Ck7MsXrrnEh6HM1I/exec", // เมลที่ 1 (ใช้เป็นหลัก)
+        "https://script.google.com/macros/s/AKfycbzlQ1_9qdsN4YpxvsrDBfxflTIdab2cP3zcOrF1lb7Gl6jUaLXsraMrzSl-KojDeo-3/exec", // เมลที่ 2 (สำรอง 1)
+        "https://script.google.com/macros/s/AKfycbzd3Gpyhqvcq__hT1EhKGPKMy9wo9bvs2ialJZdc9Q9q-DqhzV9c7z8c6qNBLE6WWmD/exec"  // เมลที่ 3 (สำรอง 2)
     ];
+
+    // ตั้งต้นใช้เมลแรกสุดเสมอ (ลำดับ Index = 0) เมื่อเต็มจะขยับตัวเลขนี้ค้างไว้ถาวรจนกว่าจะ Refresh
+    let currentEmailIndex = 0; 
 
     const GAS_SECRET_TOKEN = "RJRH_E_Cert_Secure_Pass_2026_!x"; 
 
@@ -203,51 +206,52 @@
         }
     }
 
-    // 🌟 ฟังก์ชันมหาเวทย์อัจฉริยะ: เช็คโควตาจริง (doGet) จากทุกบัญชีก่อนส่งคำสั่ง POST เพื่อไม่ให้มีรายการใดหลุดคิว
+    // 🌟 ฟังก์ชันยิงเรียงทีละตู้: บังคับส่งแบบ urlencoded เพื่อเปิดสิทธิ์อ่านสถานะโควตาเต็ม (quota_exceeded) โดยไม่ติดปัญหา CORS
     async function executeSendingEmailAPI(payloadData) {
-        let selectedUrl = null;
-        console.log("🔍 ระบบกำลังทำการ Scan ตรวจสอบกระสุนโควตาอีเมลหลังบ้าน...");
+        let success = false;
+        
+        while (currentEmailIndex < GAS_WEB_APP_URLS.length) {
+            const targetUrl = GAS_WEB_APP_URLS[currentEmailIndex];
+            console.log(`📡 กำลังส่งคิวผ่านบัญชีที่ ${currentEmailIndex + 1} -> URL: ${targetUrl}`);
 
-        for (let i = 0; i < GAS_WEB_APP_URLS.length; i++) {
-            const url = GAS_WEB_APP_URLS[i];
             try {
-                // ยิงตรวจสอบผ่านระบบ GET หลังบ้าน
-                const response = await fetch(`${url}?check_quota=true&token=${encodeURIComponent(GAS_SECRET_TOKEN)}`, {
-                    method: 'GET'
+                // แพ็กข้อมูลในรูปแบบ urlencoded เพื่อหลีกเลี่ยงกำแพง CORS ของกูเกิ้ลในการอ่าน Response
+                const response = await fetch(targetUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: "postData=" + encodeURIComponent(JSON.stringify({
+                        secret_token: GAS_SECRET_TOKEN,
+                        participants: payloadData
+                    }))
                 });
+
                 const result = await response.json();
-                
-                if (result.status === "success" && result.remaining_quota > 0) {
-                    selectedUrl = url;
-                    console.log(`✅ บัญชีที่ ${i + 1} พร้อมรันคิว! (โควตาเหลือ: ${result.remaining_quota} ฉบับ)`);
-                    break; // หยุดค้นหาทันที และเลือกใช้ท่อน้ำตัวนี้ส่งงานออกไป
+                console.log("📥 ผลลัพธ์ตอบกลับจาก GAS:", result);
+
+                if (result.status === "success") {
+                    success = true;
+                    console.log(`✅ ส่งเมลผ่านบัญชีที่ ${currentEmailIndex + 1} สำเร็จสิ้น`);
+                    break; 
+                } 
+                else if (result.status === "quota_exceeded") {
+                    console.log(`⚠️ บัญชีที่ ${currentEmailIndex + 1} แจ้งเตือน: โควตาเต็มเกลี้ยง! กำลังขยับสลับไปบัญชีถัดไป...`);
+                    currentEmailIndex++; // เลื่อนลำดับ Index เปลี่ยนตู้ถัดไปแบบถาวร
                 } else {
-                    console.log(`⚠️ บัญชีที่ ${i + 1} โควตาใช้งานเต็มแล้ว (เหลือ 0) -> ข้ามไปตรวจตู้ถัดไป`);
+                    console.error(`❌ เกิดข้อผิดพลาดจากหลังบ้าน: ${result.message}`);
+                    currentEmailIndex++; 
                 }
+
             } catch (err) {
-                console.error(`❌ บัญชีที่ ${i + 1} ระบบเน็ตเวิร์กติดขัด ข้ามไปก่อน`, err);
+                console.error(`❌ บัญชีที่ ${currentEmailIndex + 1} เชื่อมต่อไม่ผ่านหรือติดขัด:`, err);
+                currentEmailIndex++; 
             }
         }
 
-        if (!selectedUrl) {
-            alert("🚨 ข้อผิดพลาดวิกฤต: โควตาอีเมลฟรีของทุกบัญชีเต็มหมดแล้วในวันนี้! กรุณารอระบบรีเซ็ตวันพรุ่งนี้ครับ");
-            return { success: false, error: "All email quotas exceeded" };
-        }
-
-        // เมื่อได้บัญชีที่พร้อมชัวร์ ยิงคำสั่งส่งแบบ POST ทันที
-        try {
-            await fetch(selectedUrl, {
-                method: 'POST',
-                mode: 'no-cors', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    secret_token: GAS_SECRET_TOKEN,
-                    participants: payloadData
-                })
-            });
+        if (success) {
             return { success: true };
-        } catch (err) {
-            return { success: false, error: err.message };
+        } else {
+            alert("🚨 ข้อผิดพลาดวิกฤต: อีเมลทุกบัญชีในระบบโควตาเต็มหมดเกลี้ยงแล้วในวันนี้ครับ!");
+            return { success: false, error: "All email accounts are full" };
         }
     }
 
@@ -262,7 +266,6 @@
         rowEl.style.opacity = '0.5';
 
         const singlePayload = [{
-            type_mode: "certificate", // บอกให้สคริปต์หลังบ้านรู้ว่าเป็นโหมดส่งใบประกาศ
             registration_id: p.id,
             email: p.user_email, 
             name_th: p.full_name_th,
@@ -311,7 +314,6 @@
             
             if(p && p.cert_url && p.user_email !== 'ไม่มีข้อมูลอีเมล') {
                 bulkPayload.push({
-                    type_mode: "certificate", // บ่งบอกประเภทคิวใบประกาศ
                     registration_id: p.id,
                     email: p.user_email, 
                     name_th: p.full_name_th,

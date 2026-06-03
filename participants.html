@@ -72,7 +72,12 @@
 <script src="config.js"></script>
 
 <script>
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx6o8_8Q2bA6z1shuNJUqPq10TA9w0GUm5vm__sUjcQDpuudR_Ck7MsXrrnEh6HM1I/exec";
+    // 🌟 คลังลิงก์ Web App (ขุมกำลังร่วมแชร์โควตาเพื่อความครอบคลุมทั้งระบบ)
+    const GAS_WEB_APP_URLS = [
+        "https://script.google.com/macros/s/AKfycbx6o8_8Q2bA6z1shuNJUqPq10TA9w0GUm5vm__sUjcQDpuudR_Ck7MsXrrnEh6HM1I/exec", // เมลที่ 1
+        "https://script.google.com/macros/s/AKfycbzd3Gpyhqvcq__hT1EhKGPKMy9wo9bvs2ialJZdc9Q9q-DqhzV9c7z8c6qNBLE6WWmD/exec"  // เมลที่ 2
+    ];
+
     const GAS_SECRET_TOKEN = "RJRH_E_Cert_Secure_Pass_2026_!x"; 
 
     let currentSessionName = ""; 
@@ -110,14 +115,12 @@
         document.getElementById('selectAllCheck').checked = false;
         document.getElementById('btnBulkEmail').disabled = true;
 
-        // 1. ดึงตารางผู้สมัครหลัก
         const { data: regList, error: regError } = await supabaseClient.from('registrations').select('*').eq('session_id', sessionId).order('created_at', { ascending: true });
         if(regError || !regList || regList.length === 0) { 
             tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">ไม่พบข้อมูลผู้ลงทะเบียน</td></tr>'; 
             return; 
         }
 
-        // 2. ดึงตารางคิวใบประกาศ
         const { data: queueList } = await supabaseClient.from('certificates_queue').select('registration_id, pdf_status, certificate_url');
 
         tbody.innerHTML = '';
@@ -127,7 +130,6 @@
             const matchQueue = queueList ? queueList.find(q => String(q.registration_id) === String(row.id)) : null;
             const userEmail = row.email || row.email_th || row.Email || 'ไม่มีข้อมูลอีเมล';
             
-            // 🌟 ปรับปรุงเด็ดขาด: ดักสแกนหาไฟล์จาก Object ทุกรูปแบบเผื่อกรณีชื่อคีย์ในเบสเคลื่อนไหว
             const certUrl = matchQueue ? (matchQueue.certificate_url || matchQueue.cert_url || matchQueue.url) : null;
             const pdfStatus = matchQueue ? matchQueue.pdf_status : 'none';
 
@@ -135,7 +137,7 @@
                 ...row,
                 user_email: userEmail,
                 pdf_status: pdfStatus,
-                cert_url: certUrl // ลิงก์ไดรฟ์ของจริงเคลียร์จบตรงนี้
+                cert_url: certUrl 
             });
         });
 
@@ -200,10 +202,40 @@
         }
     }
 
+    // 🌟 ฟังก์ชันมหาเวทย์อัจฉริยะ: เช็คโควตาจริง (doGet) จากทุกบัญชีก่อนส่งคำสั่ง POST เพื่อไม่ให้มีรายการใดหลุดคิว
     async function executeSendingEmailAPI(payloadData) {
+        let selectedUrl = null;
+        console.log("🔍 ระบบกำลังทำการ Scan ตรวจสอบกระสุนโควตาอีเมลหลังบ้าน...");
+
+        for (let i = 0; i < GAS_WEB_APP_URLS.length; i++) {
+            const url = GAS_WEB_APP_URLS[i];
+            try {
+                // ยิงตรวจสอบผ่านระบบ GET หลังบ้าน
+                const response = await fetch(`${url}?check_quota=true&token=${encodeURIComponent(GAS_SECRET_TOKEN)}`, {
+                    method: 'GET'
+                });
+                const result = await response.json();
+                
+                if (result.status === "success" && result.remaining_quota > 0) {
+                    selectedUrl = url;
+                    console.log(`✅ บัญชีที่ ${i + 1} พร้อมรันคิว! (โควตาเหลือ: ${result.remaining_quota} ฉบับ)`);
+                    break; // หยุดค้นหาทันที และเลือกใช้ท่อน้ำตัวนี้ส่งงานออกไป
+                } else {
+                    console.log(`⚠️ บัญชีที่ ${i + 1} โควตาใช้งานเต็มแล้ว (เหลือ 0) -> ข้ามไปตรวจตู้ถัดไป`);
+                }
+            } catch (err) {
+                console.error(`❌ บัญชีที่ ${i + 1} ระบบเน็ตเวิร์กติดขัด ข้ามไปก่อน`, err);
+            }
+        }
+
+        if (!selectedUrl) {
+            alert("🚨 ข้อผิดพลาดวิกฤต: โควตาอีเมลฟรีของทุกบัญชีเต็มหมดแล้วในวันนี้! กรุณารอระบบรีเซ็ตวันพรุ่งนี้ครับ");
+            return { success: false, error: "All email quotas exceeded" };
+        }
+
+        // เมื่อได้บัญชีที่พร้อมชัวร์ ยิงคำสั่งส่งแบบ POST ทันที
         try {
-            console.log("=== [DEBUG] Payload ส่งไป GAS ===", payloadData);
-            await fetch(GAS_WEB_APP_URL, {
+            await fetch(selectedUrl, {
                 method: 'POST',
                 mode: 'no-cors', 
                 headers: { 'Content-Type': 'application/json' },
@@ -214,7 +246,6 @@
             });
             return { success: true };
         } catch (err) {
-            console.error("Email API Error: ", err);
             return { success: false, error: err.message };
         }
     }
@@ -230,12 +261,12 @@
         rowEl.style.opacity = '0.5';
 
         const singlePayload = [{
+            type_mode: "certificate", // บอกให้สคริปต์หลังบ้านรู้ว่าเป็นโหมดส่งใบประกาศ
             registration_id: p.id,
             email: p.user_email, 
             name_th: p.full_name_th,
-            name_en: p.full_name_en,
             course_name: currentSessionName,
-            drive_url: p.cert_url // มั่นใจได้ร้อยเปอร์เซ็นต์ว่าคีย์นี้มีค่าติดไปด้วยแน่นอน
+            drive_url: p.cert_url 
         }];
 
         const res = await executeSendingEmailAPI(singlePayload);
@@ -279,10 +310,10 @@
             
             if(p && p.cert_url && p.user_email !== 'ไม่มีข้อมูลอีเมล') {
                 bulkPayload.push({
+                    type_mode: "certificate", // บ่งบอกประเภทคิวใบประกาศ
                     registration_id: p.id,
                     email: p.user_email, 
                     name_th: p.full_name_th,
-                    name_en: p.full_name_en,
                     course_name: currentSessionName,
                     drive_url: p.cert_url
                 });

@@ -52,7 +52,7 @@
         <div class="card p-4 shadow-sm">
             <h6 class="fw-bold text-muted mb-3">พิมพ์รหัสด้วยตัวเอง (Manual Search)</h6>
             <div class="input-group">
-                <input text="text" id="searchInput" class="form-control form-control-lg bg-light" placeholder="กรอกรหัสลงทะเบียน 8 หลัก หรือเบอร์โทรศัพท์">
+                <input type="text" id="searchInput" class="form-control form-control-lg bg-light" placeholder="กรอกรหัสลงทะเบียน 8 หลัก หรือเบอร์โทรศัพท์">
                 <button class="btn btn-primary px-4" id="btnManualSubmit" onclick="processManualInput()"><i class="fas fa-search"></i> ค้นหา</button>
             </div>
             <div class="loader" id="searchLoader"><div class="spinner-border text-primary"></div></div>
@@ -72,8 +72,6 @@
     let fetchedRecords = []; 
 
     const CHECKIN_API_URL = typeof GOOGLE_SHEET_API !== 'undefined' ? GOOGLE_SHEET_API : "https://script.google.com/macros/s/AKfycbw1bS3fjGQngjLdKssc8yWzmbQ1gKOvTvUxraCU2eIHNxjvyyAj3iIqGcey_ETZK3pk/exec";
-    const LIVE_BLS_API = "https://script.google.com/macros/s/AKfycbxeH8fwOwWeOh83K5zORNVtq5O1ZnNLZDAB79Ic2wyJWZjWRK9frNkD6_dRs_jl6gNVoA/exec";
-    const LIVE_STB_API = "https://script.google.com/macros/s/AKfycby0ebBHlmguiJX9RYX7cBhKV7Cni42Xn6IsJfbjvS2EIZFrBJpu31fI2gQ2Xm5cOEh/exec";
 
     window.addEventListener('DOMContentLoaded', async () => {
         if (typeof checkAuthGuard === 'function') {
@@ -158,10 +156,13 @@
         }
 
         try {
+            let isNumber = /^\d+$/.test(searchQuery);
+            let queryFilter = isNumber ? `id.eq.${searchQuery},phone.eq.${searchQuery}` : `phone.eq.${searchQuery}`;
+
             let { data: results, error: fetchError } = await supabaseClient
                 .from('registrations')
                 .select('*')
-                .or(`id.eq.${searchQuery},phone.eq.${searchQuery}`);
+                .or(queryFilter);
 
             if (fetchError) throw fetchError;
             if (!results || results.length === 0) {
@@ -171,8 +172,22 @@
             fetchedRecords = results; 
 
             for (let user of fetchedRecords) {
-                const { data: sessionData } = await supabaseClient.from('sessions').select('name, date').eq('course_key', user.course_key).single();
-                user.session_info = sessionData || { name: user.course_key, date: "ไม่ระบุรอบอบรม" };
+                // 🌟 แก้ไข: สั่ง select('id') ออกมาจากตาราง sessions ด้วยเพื่อไม่ให้ค่า session_id หาย
+                if(user.course_key) {
+                    const { data: sessionData } = await supabaseClient
+                        .from('sessions')
+                        .select('id, name, training_date') 
+                        .eq('course_key', user.course_key)
+                        .maybeSingle();
+                    
+                    user.session_info = sessionData || { id: null, name: user.course_key, date: "ไม่ระบุรอบอบรม" };
+                    
+                    if(sessionData && sessionData.id) {
+                        user.session_id = sessionData.id;
+                    }
+                } else {
+                    user.session_info = { id: null, name: "ไม่มีข้อมูลหลักสูตร", date: "ไม่ระบุรอบอบรม" };
+                }
             }
 
             const baseUser = fetchedRecords[0];
@@ -185,8 +200,8 @@
                         <span class="badge bg-light text-primary fw-bold">พบทั้งหมด ${fetchedRecords.length} หลักสูตร</span>
                     </div>
                     <div class="card-body text-start">
-                        <p class="mb-1"><small class="text-muted">ชื่อ-สกุล (ไทย):</small><br><b class="fs-5">${baseUser.full_name_th}</b></p>
-                        <p class="mb-3"><small class="text-muted">ชื่อ-สกุล (ENG):</small><br><b class="fs-6 text-muted">${prefixStr}${baseUser.full_name_en}</b></p>
+                        <p class="mb-1"><small class="text-muted">ชื่อ-สกุล (ไทย):</small><br><b class="fs-5">${baseUser.full_name_th || ''}</b></p>
+                        <p class="mb-3"><small class="text-muted">ชื่อ-สกุล (ENG):</small><br><b class="fs-6 text-muted">${prefixStr}${baseUser.full_name_en || ''}</b></p>
                         
                         <h6 class="fw-bold text-secondary border-top pt-3 mb-3"><i class="fas fa-graduation-cap me-2"></i>รายการหลักสูตรที่ลงทะเบียน</h6>
                         <div id="courseListSelection">`;
@@ -209,7 +224,7 @@
                     <div class="card p-3 border-light bg-light mb-3" id="course-card-${index}">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div style="max-width: 70%;">
-                                <span class="badge bg-dark mb-1">${user.course_key}</span>
+                                <span class="badge bg-dark mb-1">${user.course_key || 'N/A'}</span>
                                 <div class="fw-bold text-dark fs-6">${user.session_info.name}</div>
                             </div>
                             <div class="text-end">${currentStatus}</div>
@@ -287,29 +302,35 @@
         try {
             let nowTime = new Date().toISOString();
 
+            // จัดการข้อมูลประเภท Bigint คุ้มครองความปลอดภัยไม่ให้หลุดเป็น String "null"
+            let userSessionId = null;
+            if (user.session_id !== undefined && user.session_id !== null && String(user.session_id).trim() !== "" && String(user.session_id) !== "null") {
+                userSessionId = Number(user.session_id);
+            } else if (user.session_info && user.session_info.id) {
+                userSessionId = Number(user.session_info.id);
+            }
+
             // ==========================================
             // ☀️ [โหมดเช็คอิน - IN]
             // ==========================================
             if (selectedMode === "IN") {
                 const { error: updateError } = await supabaseClient
                     .from('registrations')
-                    .update({ is_checked_in: true, checked_in_at: nowTime })
+                    .update({ is_checked_in: true, checked_in_at: nowTime, session_id: userSessionId })
                     .eq('id', user.id);
                 if (updateError) throw updateError;
 
                 let finalFullNameEn = user.full_name_en ? String(user.full_name_en).trim() : "";
                 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                 const d = new Date();
-                const formattedTrainingDate = `On ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}(Training day )`;
+                const formattedTrainingDate = `On ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} (Training day)`;
                 
-                let userSessionId = user.session_id ? Number(user.session_id) : null;
-
                 const { error: queueError } = await supabaseClient
                     .from('certificates_queue')
                     .insert([{
                         registration_id: String(user.id).trim(),
                         session_id: userSessionId,                        
-                        course_key: String(user.course_key).trim(),
+                        course_key: String(user.course_key || '').trim(),
                         full_name_en: finalFullNameEn,
                         training_date: formattedTrainingDate, 
                         checked_in_date: nowTime,                         
@@ -325,42 +346,48 @@
                         body: JSON.stringify({
                             action: "checkInSuccess",
                             id: String(user.id).trim(),
-                            course_key: String(user.course_key).trim()
+                            course_key: String(user.course_key || '').trim()
                         })
                     });
                 } catch(gasErr) { console.error("GAS Sync Error:", gasErr); }
 
                 courseCard.innerHTML = `
                     <div class="alert alert-success border-success text-center mb-0 py-3 fw-bold">
-                        <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key}] สำเร็จ! ระบบลงคิวและบันทึกข้อมูลเรียบร้อยแล้ว
+                        <i class="fas fa-check-circle me-1"></i> เช็คอินหลักสูตร [${user.course_key || ''}] สำเร็จ! ระบบลงคิวและบันทึกข้อมูลเรียบร้อยแล้ว
                     </div>`;
 
                 user.is_checked_in = true;
             } 
             // ==========================================
-            // 🌙 [โหมดเช็คเอาท์ - OUT]: เข้าคิวระบบ Async เบาหวิว รันเสร็จใน 0.5 วินาที
+            // 🌙 [โหมดเช็คเอาท์ - OUT]: ระบบ Rollback การันตีดาต้าตรงกัน 100%
             // ==========================================
             else {
-                // 1. สั่งบันทึกข้อมูลเวลาเช็คเอาท์กลับไปยัง Supabase ตาราง registrations ทันที
+                // 1. 🚀 [ด่านแรก]: วิ่งไปสับสวิตช์อัปเดตตารางคิวใบประกาศเป็น "รอเจน" ก่อนเพื่อน
+                let queueQuery = supabaseClient
+                    .from('certificates_queue')
+                    .update({ pdf_status: "รอเจน" })
+                    .eq('registration_id', String(user.id).trim());
+                
+                if (userSessionId !== null) {
+                    queueQuery = queueQuery.eq('session_id', userSessionId);
+                }
+                
+                const { data: queueData, error: queueUpdateError } = await queueQuery.select();
+                
+                // 🚨 [ดักจับวิกฤต]: ถ้าคิวพัง หรือไม่มีชื่อคนนี้ในคิวใบประกาศ สั่งหยุดงานทันที ไม่ให้บันทึกเช็คเอาท์!
+                if (queueUpdateError) throw queueUpdateError;
+                
+                if (!queueData || queueData.length === 0) {
+                    throw new Error(`ไม่สามารถเช็คเอาท์ได้เนื่องจากไม่พบรหัสผู้สมัครรายนี้อยู่ในคิวใบประกาศ (session_id ขัดแย้ง)`);
+                }
+
+                // 2. 🎉 [ด่านสอง]: ปรับคิวผ่านฉลุย ค่อยบันทึกเช็คเอาท์ลงทะเบียนตารางหลัก
                 const { error: checkoutUpdateError } = await supabaseClient
                     .from('registrations')
                     .update({ is_checked_out: true, checked_out_at: nowTime })
                     .eq('id', user.id);
                 if (checkoutUpdateError) throw checkoutUpdateError;
 
-                // 2. แปลงโครงสร้างประเภทข้อมูลรหัสรอบเรียนให้แม่นยำตรงกับ Supabase int8
-                let userSessionId = user.session_id ? Number(user.session_id) : null;
-
-                // 3. 🚀 ยิงคำสั่งอัปเดตเปลี่ยนค่าสถานะคิวบนตารางเป็น "รอเจน" เพื่อฝากงานเข้าระบบออโต้หลังบ้าน
-                const { error: queueUpdateError } = await supabaseClient
-                    .from('certificates_queue')
-                    .update({ pdf_status: "รอเจน" })
-                    .eq('registration_id', String(user.id).trim())
-                    .eq('session_id', userSessionId);
-                
-                if (queueUpdateError) throw queueUpdateError;
-
-                // 4. บันทึกประวัติ Log การเช็คเอาท์ส่งเข้า Google Sheet ส่วนกลาง (รันโหมดเบาไม่ดึงเวลา)
                 try {
                     await fetch(CHECKIN_API_URL, {
                         method: 'POST',
@@ -369,23 +396,22 @@
                         body: JSON.stringify({
                             action: "checkOutSuccess",
                             id: String(user.id).trim(),
-                            course_key: String(user.course_key).trim()
+                            course_key: String(user.course_key || '').trim()
                         })
                     });
                 } catch(gasErr) { console.error("GAS Log Error:", gasErr); }
 
-                // 5. พ่นข้อความแสดงป๊อปอัปสำเร็จทันทีภายใน 0.5 วินาที เพื่อให้สตาฟฟ์หน้างานสแกนคนต่อไปต่อได้ทันที
                 Swal.fire({
                     title: 'บันทึกเช็คเอาท์สำเร็จ!',
                     text: 'นำรายชื่อเข้าคิวระบบพิมพ์วุฒิบัตรเบื้องหลังเรียบร้อยแล้ว',
                     icon: 'success',
-                    timer: 1500, // ปิดหน้าต่างเด้งออโต้ใน 1.5 วินาทีเพื่อความเร็วสูงสุด
+                    timer: 1500, 
                     showConfirmButton: false
                 });
 
                 courseCard.innerHTML = `
                     <div class="alert alert-info border-info text-center mb-0 py-3 fw-bold">
-                        <i class="fas fa-graduation-cap me-1"></i> เช็คเอาท์และนำเข้าคิวพิมพ์ใบประกาศหลักสูตร [${user.course_key}] เรียบร้อยแล้ว!
+                        <i class="fas fa-graduation-cap me-1"></i> เช็คเอาท์และนำเข้าคิวพิมพ์ใบประกาศหลักสูตร [${user.course_key || ''}] เรียบร้อยแล้ว!
                     </div>`;
 
                 user.is_checked_out = true;
